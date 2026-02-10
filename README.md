@@ -1,7 +1,5 @@
 <div align="center">
 
-English | [Español](docs/README.es.md) | [中文版](docs/README.zh-CN.md) | [Português](docs/README.pt.md)
-
 # ServerKit
 
 <img width="700" alt="server-kit" src="https://github.com/user-attachments/assets/bfc59e75-8f90-4674-a222-e18213b628b7" />
@@ -11,6 +9,8 @@ English | [Español](docs/README.es.md) | [中文版](docs/README.zh-CN.md) | [P
 A lightweight, modern server control panel for managing web apps, databases,
 Docker containers, and security — without the complexity of Kubernetes
 or the cost of managed platforms.
+
+English | [Español](docs/README.es.md) | [中文版](docs/README.zh-CN.md) | [Português](docs/README.pt.md)
 
 <br>
 

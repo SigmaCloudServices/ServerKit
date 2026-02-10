@@ -1,7 +1,5 @@
 <div align="center">
 
-[English](../README.md) | [Español](README.es.md) | 中文版 | [Português](README.pt.md)
-
 # ServerKit
 
 <img width="700" alt="server-kit" src="https://github.com/user-attachments/assets/bfc59e75-8f90-4674-a222-e18213b628b7" />
@@ -11,6 +9,8 @@
 一款轻量、现代的服务器控制面板，用于管理 Web 应用、数据库、
 Docker 容器和安全策略——无需 Kubernetes 的复杂性，
 也没有托管平台的高昂成本。
+
+[English](../README.md) | [Español](README.es.md) | 中文版 | [Português](README.pt.md)
 
 <br>
 
