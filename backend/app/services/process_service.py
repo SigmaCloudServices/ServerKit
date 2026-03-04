@@ -3,6 +3,8 @@ import subprocess
 import platform
 from typing import List, Dict, Optional
 
+from app.utils.system import run_privileged, is_command_available
+
 
 class ProcessService:
     """Service for process and service management."""
@@ -129,13 +131,15 @@ class ProcessService:
         try:
             if system == 'Linux':
                 # Try systemctl first (systemd)
-                cmd = ['sudo', 'systemctl', action, service_name]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                result = run_privileged(
+                    ['systemctl', action, service_name], timeout=30
+                )
 
                 if result.returncode != 0:
                     # Fall back to service command
-                    cmd = ['sudo', 'service', service_name, action]
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                    result = run_privileged(
+                        ['service', service_name, action], timeout=30
+                    )
 
                 if result.returncode == 0:
                     return {'success': True, 'message': f'Service {service_name} {action} successful'}
@@ -158,6 +162,8 @@ class ProcessService:
             else:
                 return {'success': False, 'error': f'Unsupported platform: {system}'}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': 'systemctl/service command not found'}
         except subprocess.TimeoutExpired:
             return {'success': False, 'error': 'Command timed out'}
         except Exception as e:
@@ -170,9 +176,13 @@ class ProcessService:
 
         try:
             if system == 'Linux':
-                # Use journalctl for systemd services
-                cmd = ['sudo', 'journalctl', '-u', service_name, '-n', str(lines), '--no-pager']
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                if not is_command_available('journalctl'):
+                    return {'success': False, 'error': 'journalctl is not available on this system'}
+
+                result = run_privileged(
+                    ['journalctl', '-u', service_name, '-n', str(lines), '--no-pager'],
+                    timeout=30
+                )
 
                 if result.returncode == 0:
                     return {'success': True, 'logs': result.stdout}
@@ -182,5 +192,7 @@ class ProcessService:
             else:
                 return {'success': False, 'error': 'Log retrieval not supported on this platform'}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': 'journalctl command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}

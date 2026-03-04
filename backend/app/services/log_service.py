@@ -7,6 +7,7 @@ import threading
 import queue
 
 from app import paths
+from app.utils.system import run_privileged, privileged_cmd, is_command_available
 
 
 class LogService:
@@ -81,22 +82,11 @@ class LogService:
             return {'success': False, 'error': 'Log file not found'}
 
         try:
-            if from_end:
-                # Use tail to get last N lines
-                result = subprocess.run(
-                    ['sudo', 'tail', '-n', str(lines), filepath],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-            else:
-                # Use head to get first N lines
-                result = subprocess.run(
-                    ['sudo', 'head', '-n', str(lines), filepath],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
+            tool = 'tail' if from_end else 'head'
+            result = run_privileged(
+                [tool, '-n', str(lines), filepath],
+                timeout=30
+            )
 
             if result.returncode == 0:
                 log_lines = result.stdout.split('\n')
@@ -109,6 +99,8 @@ class LogService:
             else:
                 return {'success': False, 'error': result.stderr}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': f'{tool} command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -122,10 +114,8 @@ class LogService:
             return {'success': False, 'error': 'Log file not found'}
 
         try:
-            result = subprocess.run(
-                ['sudo', 'grep', '-i', '-m', str(lines), pattern, filepath],
-                capture_output=True,
-                text=True,
+            result = run_privileged(
+                ['grep', '-i', '-m', str(lines), pattern, filepath],
                 timeout=60
             )
 
@@ -141,6 +131,8 @@ class LogService:
             else:
                 return {'success': False, 'error': result.stderr}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': 'grep command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -222,8 +214,11 @@ class LogService:
     def get_journalctl_logs(cls, unit: str = None, lines: int = 100,
                             since: str = None, priority: str = None) -> Dict:
         """Get logs from systemd journal."""
+        if not is_command_available('journalctl'):
+            return {'success': False, 'error': 'journalctl is not available on this system'}
+
         try:
-            cmd = ['sudo', 'journalctl', '-n', str(lines), '--no-pager', '-o', 'short-iso']
+            cmd = ['journalctl', '-n', str(lines), '--no-pager', '-o', 'short-iso']
 
             if unit:
                 cmd.extend(['-u', unit])
@@ -232,7 +227,7 @@ class LogService:
             if priority:
                 cmd.extend(['-p', priority])
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = run_privileged(cmd, timeout=60)
 
             if result.returncode == 0:
                 log_lines = result.stdout.split('\n')
@@ -244,6 +239,8 @@ class LogService:
             else:
                 return {'success': False, 'error': result.stderr}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': 'journalctl command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -257,10 +254,8 @@ class LogService:
             return {'success': False, 'error': 'Log file not found'}
 
         try:
-            result = subprocess.run(
-                ['sudo', 'truncate', '-s', '0', filepath],
-                capture_output=True,
-                text=True
+            result = run_privileged(
+                ['truncate', '-s', '0', filepath]
             )
 
             if result.returncode == 0:
@@ -268,6 +263,8 @@ class LogService:
             else:
                 return {'success': False, 'error': result.stderr}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': 'truncate command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -275,10 +272,8 @@ class LogService:
     def rotate_logs(cls) -> Dict:
         """Trigger log rotation."""
         try:
-            result = subprocess.run(
-                ['sudo', 'logrotate', '-f', '/etc/logrotate.conf'],
-                capture_output=True,
-                text=True,
+            result = run_privileged(
+                ['logrotate', '-f', '/etc/logrotate.conf'],
                 timeout=120
             )
 
@@ -286,6 +281,8 @@ class LogService:
                 'success': result.returncode == 0,
                 'message': 'Logs rotated' if result.returncode == 0 else result.stderr
             }
+        except FileNotFoundError:
+            return {'success': False, 'error': 'logrotate command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -302,7 +299,7 @@ class LogService:
 
         try:
             process = subprocess.Popen(
-                ['sudo', 'tail', '-f', '-n', '0', filepath],
+                privileged_cmd(['tail', '-f', '-n', '0', filepath]),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True

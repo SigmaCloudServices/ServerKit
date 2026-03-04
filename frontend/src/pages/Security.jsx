@@ -923,66 +923,80 @@ const ScannerTab = () => {
                 </div>
             )}
 
-            <div className="scanner-actions card">
-                <div className="card-header">
-                    <h3>Malware Scanner</h3>
-                    <button className="btn btn-sm btn-secondary" onClick={handleUpdateDefinitions} disabled={updating}>
-                        {updating ? 'Updating...' : 'Update Definitions'}
+            <div className="scan-options">
+                <div className="scan-card" onClick={() => !isScanning && !scanning && handleStartScan('quick')}>
+                    <div className="scan-card-icon">
+                        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" strokeWidth="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                    </div>
+                    <h4>Quick Scan</h4>
+                    <span className="scan-desc">Scan common web directories</span>
+                    <button
+                        className="btn btn-primary btn-sm"
+                        onClick={(e) => { e.stopPropagation(); handleStartScan('quick'); }}
+                        disabled={isScanning || scanning}
+                    >
+                        Start Scan
                     </button>
                 </div>
-                <div className="card-body">
-                    <div className="scan-options">
-                        <div className="scan-preset">
-                            <button
-                                className="btn btn-primary btn-lg"
-                                onClick={() => handleStartScan('quick')}
-                                disabled={isScanning || scanning}
-                            >
-                                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" strokeWidth="2">
-                                    <polygon points="5 3 19 12 5 21 5 3"/>
-                                </svg>
-                                Quick Scan
-                            </button>
-                            <span className="scan-desc">Scan common web directories</span>
-                        </div>
 
-                        <div className="scan-preset">
-                            <button
-                                className="btn btn-secondary btn-lg"
-                                onClick={() => handleStartScan('full')}
-                                disabled={isScanning || scanning}
-                            >
-                                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <circle cx="12" cy="12" r="6"/>
-                                    <circle cx="12" cy="12" r="2"/>
-                                </svg>
-                                Full Scan
-                            </button>
-                            <span className="scan-desc">Scan entire system (slow)</span>
-                        </div>
+                <div className="scan-card" onClick={() => !isScanning && !scanning && handleStartScan('full')}>
+                    <div className="scan-card-icon">
+                        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="12" r="6"/>
+                            <circle cx="12" cy="12" r="2"/>
+                        </svg>
+                    </div>
+                    <h4>Full Scan</h4>
+                    <span className="scan-desc">Scan entire system (slow)</span>
+                    <button
+                        className="btn btn-primary btn-sm"
+                        onClick={(e) => { e.stopPropagation(); handleStartScan('full'); }}
+                        disabled={isScanning || scanning}
+                    >
+                        Start Scan
+                    </button>
+                </div>
 
-                        <div className="scan-custom">
-                            <label>Custom Path</label>
-                            <div className="input-group">
-                                <input
-                                    type="text"
-                                    value={scanPath}
-                                    onChange={(e) => setScanPath(e.target.value)}
-                                    placeholder="/path/to/scan"
-                                    disabled={isScanning}
-                                />
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => handleStartScan('custom')}
-                                    disabled={isScanning || scanning || !scanPath}
-                                >
-                                    Scan
-                                </button>
-                            </div>
-                        </div>
+                <div className="scan-card scan-card--custom">
+                    <div className="scan-card-icon">
+                        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" strokeWidth="2">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </div>
+                    <h4>Custom Path</h4>
+                    <span className="scan-desc">Scan a specific directory</span>
+                    <div className="scan-custom-input">
+                        <input
+                            type="text"
+                            value={scanPath}
+                            onChange={(e) => setScanPath(e.target.value)}
+                            placeholder="/path/to/scan"
+                            disabled={isScanning}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => handleStartScan('custom')}
+                            disabled={isScanning || scanning || !scanPath}
+                        >
+                            Scan
+                        </button>
                     </div>
                 </div>
+            </div>
+
+            <div className="scan-toolbar">
+                <button className="btn btn-sm btn-secondary" onClick={handleUpdateDefinitions} disabled={updating}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    {updating ? 'Updating...' : 'Update Definitions'}
+                </button>
             </div>
 
             {isScanning && (
@@ -1015,7 +1029,13 @@ const ScannerTab = () => {
                 </div>
                 <div className="card-body">
                     {history.length === 0 ? (
-                        <p className="text-muted">No scan history available.</p>
+                        <div className="empty-state-sm">
+                            <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" fill="none" strokeWidth="1.5">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            </svg>
+                            <p>No scans have been run yet. Start a scan above to check for threats.</p>
+                        </div>
                     ) : (
                         <table className="table">
                             <thead>

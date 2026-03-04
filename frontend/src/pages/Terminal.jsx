@@ -199,7 +199,7 @@ const LogFilesTab = () => {
                     <div className="sidebar-header">
                         <h3>Log Files</h3>
                         <button className="btn btn-secondary btn-sm" onClick={loadLogFiles}>
-                            <svg viewBox="0 0 24 24" width="14" height="14">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="23 4 23 10 17 10"/>
                                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                             </svg>
@@ -317,6 +317,7 @@ const LogFilesTab = () => {
 const JournalTab = () => {
     const [logs, setLogs] = useState('');
     const [loading, setLoading] = useState(false);
+    const [unavailable, setUnavailable] = useState(false);
     const [unit, setUnit] = useState('');
     const [lineCount, setLineCount] = useState(100);
     const [priority, setPriority] = useState('');
@@ -327,11 +328,17 @@ const JournalTab = () => {
 
     async function loadJournalLogs() {
         setLoading(true);
+        setUnavailable(false);
         try {
             const data = await api.getJournalLogs(unit || null, lineCount);
             setLogs(data.content || data.logs || 'No logs available');
         } catch (err) {
-            setLogs(`Error: ${err.message}`);
+            const msg = err.message || '';
+            if (msg.includes('not available') || msg.includes('not found')) {
+                setUnavailable(true);
+            } else {
+                setLogs(`Error: ${msg}`);
+            }
         } finally {
             setLoading(false);
         }
@@ -340,6 +347,30 @@ const JournalTab = () => {
     useEffect(() => {
         loadJournalLogs();
     }, []);
+
+    if (unavailable) {
+        return (
+            <div className="journal-container">
+                <div className="empty-state">
+                    <svg viewBox="0 0 24 24" width="48" height="48">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="9" y1="9" x2="15" y2="9"/>
+                        <line x1="9" y1="13" x2="15" y2="13"/>
+                        <line x1="9" y1="17" x2="11" y2="17"/>
+                    </svg>
+                    <h3>System Journal Unavailable</h3>
+                    <p>
+                        <code>journalctl</code> is not available on this system.
+                        This typically means the server is running without systemd
+                        (e.g. a minimal Docker container or Windows dev environment).
+                    </p>
+                    <p className="text-muted">
+                        Use the <strong>Log Files</strong> tab to browse available log files instead.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="journal-container">
@@ -701,7 +732,7 @@ const ServicesTab = () => {
         <div className="services-container">
             <div className="services-toolbar">
                 <button className="btn btn-secondary btn-sm" onClick={loadServices}>
-                    <svg viewBox="0 0 24 24" width="14" height="14">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="23 4 23 10 17 10"/>
                         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                     </svg>

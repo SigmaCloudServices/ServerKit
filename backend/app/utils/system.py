@@ -10,27 +10,50 @@ import subprocess
 from typing import List, Optional, Union
 
 
+def _needs_sudo() -> bool:
+    """Return True if the current process should prepend sudo to commands.
+
+    Returns False when:
+    - Running on Windows (no sudo concept; dev environment)
+    - Already running as root (e.g. inside Docker)
+    - ``sudo`` is not installed (minimal containers)
+    """
+    if os.name == 'nt':
+        return False
+    if os.geteuid() == 0:
+        return False
+    if not shutil.which('sudo'):
+        return False
+    return True
+
+
+def privileged_cmd(cmd: Union[List[str], str]) -> Union[List[str], str]:
+    """Return *cmd* with ``sudo`` prepended when necessary.
+
+    Use this when you need the command list for ``Popen`` or other non-``run``
+    callers.  For simple ``subprocess.run`` calls prefer :func:`run_privileged`.
+    """
+    if isinstance(cmd, str):
+        if _needs_sudo() and not cmd.lstrip().startswith('sudo '):
+            return f'sudo {cmd}'
+        return cmd
+
+    cmd = list(cmd)
+    if _needs_sudo() and cmd[0] != 'sudo':
+        return ['sudo'] + cmd
+    return cmd
+
+
 def run_privileged(cmd: Union[List[str], str], **kwargs) -> subprocess.CompletedProcess:
     """Run a command with sudo if the current process is not root.
 
-    Prepends ``sudo`` when ``os.geteuid() != 0`` and the command does not
-    already start with ``sudo``.  Defaults to ``capture_output=True, text=True``
-    but callers can override any kwarg.
+    Prepends ``sudo`` only when needed (not root, not Windows, sudo exists).
+    Defaults to ``capture_output=True, text=True`` but callers can override.
 
     Returns the raw ``CompletedProcess`` so services keep their existing
     error-handling patterns.
     """
-    if isinstance(cmd, str):
-        # Shell-mode — caller is responsible for quoting
-        needs_sudo = os.geteuid() != 0 and not cmd.lstrip().startswith('sudo ')
-        if needs_sudo:
-            cmd = f'sudo {cmd}'
-    else:
-        cmd = list(cmd)
-        needs_sudo = os.geteuid() != 0 and cmd[0] != 'sudo'
-        if needs_sudo:
-            cmd = ['sudo'] + cmd
-
+    cmd = privileged_cmd(cmd)
     kwargs.setdefault('capture_output', True)
     kwargs.setdefault('text', True)
     return subprocess.run(cmd, **kwargs)
