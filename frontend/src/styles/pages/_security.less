@@ -5,7 +5,7 @@
 .security-page {
     .tabs-nav {
         display: flex;
-        gap: @space-1;
+        gap: @space-2;
         margin-bottom: @space-6;
         border-bottom: 1px solid @border-subtle;
         padding-bottom: @space-2;
@@ -68,8 +68,8 @@
         }
 
         &.info {
-            border-color: fade(@accent-primary, 30%);
-            .stat-icon { color: @accent-primary; background: fade(@accent-primary, 15%); }
+            border-color: fade(@accent-primary-raw, 30%);
+            .stat-icon { color: @accent-primary; background: fade(@accent-primary-raw, 15%); }
         }
     }
 
@@ -110,55 +110,96 @@
 .scanner-tab {
     .scan-options {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: @space-6;
-        align-items: start;
+        grid-template-columns: repeat(3, 1fr);
+        gap: @space-4;
+        margin-bottom: @space-4;
+
+        @media (max-width: @breakpoint-md) {
+            grid-template-columns: 1fr;
+        }
     }
 
-    .scan-preset {
+    .scan-card {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: @space-2;
         text-align: center;
+        padding: @space-6 @space-4;
+        background: @bg-card;
+        border: 1px solid @border-subtle;
+        border-radius: @radius-lg;
+        cursor: pointer;
+        .transition(all);
 
-        .btn-lg {
-            display: flex;
-            align-items: center;
-            gap: @space-2;
-            padding: @space-4 @space-8;
+        &:hover {
+            border-color: @accent-primary;
+            background: @bg-elevated;
+        }
+
+        h4 {
+            margin: 0 0 @space-1;
             font-size: @font-size-md;
-
-            svg {
-                flex-shrink: 0;
-            }
+            font-weight: @font-weight-semibold;
         }
 
         .scan-desc {
             color: @text-secondary;
             font-size: @font-size-sm;
+            margin-bottom: @space-4;
+        }
+
+        .btn {
+            margin-top: auto;
         }
     }
 
-    .scan-custom {
-        label {
-            display: block;
-            margin-bottom: @space-2;
-            font-weight: 500;
+    .scan-card-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: @radius-md;
+        background: fade(@accent-primary-raw, 10%);
+        color: @accent-primary;
+        margin-bottom: @space-3;
+    }
+
+    .scan-card--custom {
+        cursor: default;
+
+        &:hover {
+            border-color: @border-subtle;
+            background: @bg-card;
         }
+    }
 
-        .input-group {
+    .scan-custom-input {
+        display: flex;
+        gap: @space-2;
+        width: 100%;
+        margin-top: auto;
+
+        input {
+            flex: 1;
+            min-width: 0;
+        }
+    }
+
+    .scan-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: @space-4;
+
+        .btn {
             display: flex;
+            align-items: center;
             gap: @space-2;
-
-            input {
-                flex: 1;
-            }
         }
     }
 
     .scan-progress {
-        margin-top: @space-6;
+        margin-bottom: @space-4;
         border-color: @accent-primary;
 
         .progress-info {
@@ -746,7 +787,7 @@
         }
 
         &.recommendations {
-            background: fade(@accent-primary, 10%);
+            background: fade(@accent-primary-raw, 10%);
             padding: @space-4;
             border-radius: @radius-md;
 

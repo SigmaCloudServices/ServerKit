@@ -106,10 +106,12 @@ class ApiService {
         return data;
     }
 
-    async register(email, username, password) {
+    async register(email, username, password, inviteToken) {
+        const body = { email, username, password };
+        if (inviteToken) body.invite_token = inviteToken;
         const data = await this.request('/auth/register', {
             method: 'POST',
-            body: { email, username, password },
+            body,
         });
         this.setTokens(data.access_token, data.refresh_token);
         return data;
@@ -2044,6 +2046,13 @@ class ApiService {
         });
     }
 
+    async updateCronJob(jobId, data) {
+        return this.request(`/cron/jobs/${jobId}`, {
+            method: 'PUT',
+            body: data
+        });
+    }
+
     async deleteCronJob(jobId) {
         return this.request(`/cron/jobs/${jobId}`, { method: 'DELETE' });
     }
@@ -2600,7 +2609,7 @@ class ApiService {
 
     // Server Registration
     async generateRegistrationToken(serverId) {
-        return this.request(`/servers/${serverId}/registration-token`, {
+        return this.request(`/servers/${serverId}/regenerate-token`, {
             method: 'POST'
         });
     }
@@ -2904,6 +2913,287 @@ class ApiService {
         // Returns the download URL, caller should redirect or fetch
         const baseUrl = this.baseUrl.replace('/api/v1', '');
         return `${baseUrl}/api/servers/agent/download/${os}/${arch}`;
+    }
+
+    // ── Email Server ──
+    async getEmailStatus() { return this.request('/email/status'); }
+    async installEmailServer(data = {}) { return this.request('/email/install', { method: 'POST', body: JSON.stringify(data) }); }
+    async controlEmailService(component, action) { return this.request(`/email/service/${component}/${action}`, { method: 'POST' }); }
+    // Email Domains
+    async getEmailDomains() { return this.request('/email/domains'); }
+    async addEmailDomain(data) { return this.request('/email/domains', { method: 'POST', body: JSON.stringify(data) }); }
+    async getEmailDomain(domainId) { return this.request(`/email/domains/${domainId}`); }
+    async deleteEmailDomain(domainId) { return this.request(`/email/domains/${domainId}`, { method: 'DELETE' }); }
+    async verifyEmailDNS(domainId) { return this.request(`/email/domains/${domainId}/verify-dns`, { method: 'POST' }); }
+    async deployEmailDNS(domainId) { return this.request(`/email/domains/${domainId}/deploy-dns`, { method: 'POST' }); }
+    // Email Accounts
+    async getEmailAccounts(domainId) { return this.request(`/email/domains/${domainId}/accounts`); }
+    async createEmailAccount(domainId, data) { return this.request(`/email/domains/${domainId}/accounts`, { method: 'POST', body: JSON.stringify(data) }); }
+    async getEmailAccount(accountId) { return this.request(`/email/accounts/${accountId}`); }
+    async updateEmailAccount(accountId, data) { return this.request(`/email/accounts/${accountId}`, { method: 'PUT', body: JSON.stringify(data) }); }
+    async deleteEmailAccount(accountId) { return this.request(`/email/accounts/${accountId}`, { method: 'DELETE' }); }
+    async changeEmailPassword(accountId, password) { return this.request(`/email/accounts/${accountId}/password`, { method: 'POST', body: JSON.stringify({ password }) }); }
+    // Email Aliases
+    async getEmailAliases(domainId) { return this.request(`/email/domains/${domainId}/aliases`); }
+    async createEmailAlias(domainId, data) { return this.request(`/email/domains/${domainId}/aliases`, { method: 'POST', body: JSON.stringify(data) }); }
+    async deleteEmailAlias(aliasId) { return this.request(`/email/aliases/${aliasId}`, { method: 'DELETE' }); }
+    // Email Forwarding
+    async getEmailForwarding(accountId) { return this.request(`/email/accounts/${accountId}/forwarding`); }
+    async createEmailForwarding(accountId, data) { return this.request(`/email/accounts/${accountId}/forwarding`, { method: 'POST', body: JSON.stringify(data) }); }
+    async updateEmailForwarding(ruleId, data) { return this.request(`/email/forwarding/${ruleId}`, { method: 'PUT', body: JSON.stringify(data) }); }
+    async deleteEmailForwarding(ruleId) { return this.request(`/email/forwarding/${ruleId}`, { method: 'DELETE' }); }
+    // DNS Providers
+    async getEmailDNSProviders() { return this.request('/email/dns-providers'); }
+    async addEmailDNSProvider(data) { return this.request('/email/dns-providers', { method: 'POST', body: JSON.stringify(data) }); }
+    async deleteEmailDNSProvider(providerId) { return this.request(`/email/dns-providers/${providerId}`, { method: 'DELETE' }); }
+    async testEmailDNSProvider(providerId) { return this.request(`/email/dns-providers/${providerId}/test`, { method: 'POST' }); }
+    async getEmailDNSZones(providerId) { return this.request(`/email/dns-providers/${providerId}/zones`); }
+    // SpamAssassin
+    async getSpamConfig() { return this.request('/email/spam/config'); }
+    async updateSpamConfig(data) { return this.request('/email/spam/config', { method: 'PUT', body: JSON.stringify(data) }); }
+    async updateSpamRules() { return this.request('/email/spam/update-rules', { method: 'POST' }); }
+    // Roundcube Webmail
+    async getWebmailStatus() { return this.request('/email/webmail/status'); }
+    async installWebmail(data = {}) { return this.request('/email/webmail/install', { method: 'POST', body: JSON.stringify(data) }); }
+    async controlWebmail(action) { return this.request(`/email/webmail/service/${action}`, { method: 'POST' }); }
+    async configureWebmailProxy(domain) { return this.request('/email/webmail/configure-proxy', { method: 'POST', body: JSON.stringify({ domain }) }); }
+    // Mail Queue & Logs
+    async getMailQueue() { return this.request('/email/queue'); }
+    async flushMailQueue() { return this.request('/email/queue/flush', { method: 'POST' }); }
+    async deleteMailQueueItem(queueId) { return this.request(`/email/queue/${queueId}`, { method: 'DELETE' }); }
+    async getMailLogs(lines = 100) { return this.request(`/email/logs?lines=${lines}`); }
+
+    // ==================== SSO / OAuth ====================
+
+    async getSSOProviders() {
+        return this.request('/sso/providers');
+    }
+
+    async startSSOAuth(provider, redirectUri) {
+        return this.request(`/sso/authorize/${provider}?redirect_uri=${encodeURIComponent(redirectUri)}`);
+    }
+
+    async completeSSOAuth(provider, code, state, redirectUri) {
+        const data = await this.request(`/sso/callback/${provider}`, {
+            method: 'POST',
+            body: { code, state, redirect_uri: redirectUri },
+        });
+        if (data.access_token) {
+            this.setTokens(data.access_token, data.refresh_token);
+        }
+        return data;
+    }
+
+    async getSSOIdentities() {
+        return this.request('/sso/identities');
+    }
+
+    async linkSSOProvider(provider, code, state, redirectUri) {
+        return this.request(`/sso/link/${provider}`, {
+            method: 'POST',
+            body: { code, state, redirect_uri: redirectUri },
+        });
+    }
+
+    async unlinkSSOProvider(provider) {
+        return this.request(`/sso/link/${provider}`, { method: 'DELETE' });
+    }
+
+    // SSO Admin
+    async getSSOConfig() {
+        return this.request('/sso/admin/config');
+    }
+
+    async updateSSOProviderConfig(provider, config) {
+        return this.request(`/sso/admin/config/${provider}`, {
+            method: 'PUT',
+            body: config,
+        });
+    }
+
+    async testSSOProvider(provider) {
+        return this.request(`/sso/admin/test/${provider}`, { method: 'POST' });
+    }
+
+    async updateSSOGeneralSettings(settings) {
+        return this.request('/sso/admin/general', {
+            method: 'PUT',
+            body: settings,
+        });
+    }
+
+    // Database Migrations
+    async getMigrationStatus() {
+        return this.request('/migrations/status');
+    }
+
+    async createMigrationBackup() {
+        return this.request('/migrations/backup', { method: 'POST' });
+    }
+
+    async applyMigrations() {
+        return this.request('/migrations/apply', { method: 'POST' });
+    }
+
+    async getMigrationHistory() {
+        return this.request('/migrations/history');
+    }
+
+    // API Keys
+    async getApiKeys() {
+        return this.request('/api-keys/');
+    }
+
+    async createApiKey(data) {
+        return this.request('/api-keys/', { method: 'POST', body: data });
+    }
+
+    async getApiKey(id) {
+        return this.request(`/api-keys/${id}`);
+    }
+
+    async updateApiKey(id, data) {
+        return this.request(`/api-keys/${id}`, { method: 'PUT', body: data });
+    }
+
+    async revokeApiKey(id) {
+        return this.request(`/api-keys/${id}`, { method: 'DELETE' });
+    }
+
+    async rotateApiKey(id) {
+        return this.request(`/api-keys/${id}/rotate`, { method: 'POST' });
+    }
+
+    // Event Subscriptions (Webhooks)
+    async getEventSubscriptions() {
+        return this.request('/event-subscriptions/');
+    }
+
+    async createEventSubscription(data) {
+        return this.request('/event-subscriptions/', { method: 'POST', body: data });
+    }
+
+    async getAvailableEvents() {
+        return this.request('/event-subscriptions/events');
+    }
+
+    async getEventSubscription(id) {
+        return this.request(`/event-subscriptions/${id}`);
+    }
+
+    async updateEventSubscription(id, data) {
+        return this.request(`/event-subscriptions/${id}`, { method: 'PUT', body: data });
+    }
+
+    async deleteEventSubscription(id) {
+        return this.request(`/event-subscriptions/${id}`, { method: 'DELETE' });
+    }
+
+    async testEventSubscription(id) {
+        return this.request(`/event-subscriptions/${id}/test`, { method: 'POST' });
+    }
+
+    async getEventDeliveries(id, page = 1) {
+        return this.request(`/event-subscriptions/${id}/deliveries?page=${page}`);
+    }
+
+    async retryEventDelivery(subId, deliveryId) {
+        return this.request(`/event-subscriptions/${subId}/deliveries/${deliveryId}/retry`, { method: 'POST' });
+    }
+
+    // API Analytics
+    async getApiAnalyticsOverview(period = '24h') {
+        return this.request(`/api-analytics/overview?period=${period}`);
+    }
+
+    async getApiAnalyticsEndpoints(period = '24h', limit = 20) {
+        return this.request(`/api-analytics/endpoints?period=${period}&limit=${limit}`);
+    }
+
+    async getApiAnalyticsErrors(period = '24h') {
+        return this.request(`/api-analytics/errors?period=${period}`);
+    }
+
+    async getApiAnalyticsTimeseries(period = '24h', interval = 'hour') {
+        return this.request(`/api-analytics/timeseries?period=${period}&interval=${interval}`);
+    }
+
+    async getApiKeyUsage(keyId, period = '24h') {
+        return this.request(`/api-analytics/keys/${keyId}/usage?period=${period}`);
+    }
+
+    // ========================================
+    // Admin - Permissions endpoints
+    // ========================================
+    async getUserPermissions(userId) {
+        return this.request(`/admin/users/${userId}/permissions`);
+    }
+
+    async updateUserPermissions(userId, permissions) {
+        return this.request(`/admin/users/${userId}/permissions`, {
+            method: 'PUT',
+            body: { permissions }
+        });
+    }
+
+    async resetUserPermissions(userId) {
+        return this.request(`/admin/users/${userId}/permissions/reset`, {
+            method: 'POST'
+        });
+    }
+
+    async getPermissionTemplates() {
+        return this.request('/admin/permissions/templates');
+    }
+
+    // ========================================
+    // Admin - Invitations endpoints
+    // ========================================
+    async getInvitations(status) {
+        const query = status ? `?status=${status}` : '';
+        return this.request(`/admin/invitations/${query}`);
+    }
+
+    async createInvitation(data) {
+        return this.request('/admin/invitations/', {
+            method: 'POST',
+            body: data
+        });
+    }
+
+    async revokeInvitation(id) {
+        return this.request(`/admin/invitations/${id}`, {
+            method: 'DELETE'
+        });
+    }
+
+    async resendInvitation(id) {
+        return this.request(`/admin/invitations/resend/${id}`, {
+            method: 'POST'
+        });
+    }
+
+    async validateInvitation(token) {
+        return this.request(`/admin/invitations/validate/${token}`);
+    }
+
+    // ========================================
+    // Admin - Activity endpoints
+    // ========================================
+    async getActivitySummary() {
+        return this.request('/admin/activity/summary');
+    }
+
+    async getActivityFeed(params = {}) {
+        const searchParams = new URLSearchParams();
+        if (params.page) searchParams.append('page', params.page);
+        if (params.per_page) searchParams.append('per_page', params.per_page);
+        if (params.user_id) searchParams.append('user_id', params.user_id);
+        if (params.action) searchParams.append('action', params.action);
+        if (params.start_date) searchParams.append('start_date', params.start_date);
+        if (params.end_date) searchParams.append('end_date', params.end_date);
+        const query = searchParams.toString();
+        return this.request(`/admin/activity/feed${query ? '?' + query : ''}`);
     }
 }
 

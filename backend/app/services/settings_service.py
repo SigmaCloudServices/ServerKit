@@ -37,7 +37,33 @@ class SettingsService:
             'value': False,
             'type': 'boolean',
             'description': 'Enable developer mode for debugging tools and icon reference'
-        }
+        },
+        # SSO / OAuth settings
+        'sso_google_enabled': {'value': False, 'type': 'boolean', 'description': 'Enable Google OAuth login'},
+        'sso_google_client_id': {'value': '', 'type': 'string', 'description': 'Google OAuth client ID'},
+        'sso_google_client_secret': {'value': '', 'type': 'string', 'description': 'Google OAuth client secret'},
+        'sso_github_enabled': {'value': False, 'type': 'boolean', 'description': 'Enable GitHub OAuth login'},
+        'sso_github_client_id': {'value': '', 'type': 'string', 'description': 'GitHub OAuth client ID'},
+        'sso_github_client_secret': {'value': '', 'type': 'string', 'description': 'GitHub OAuth client secret'},
+        'sso_oidc_enabled': {'value': False, 'type': 'boolean', 'description': 'Enable generic OIDC login'},
+        'sso_oidc_provider_name': {'value': '', 'type': 'string', 'description': 'OIDC provider display name'},
+        'sso_oidc_client_id': {'value': '', 'type': 'string', 'description': 'OIDC client ID'},
+        'sso_oidc_client_secret': {'value': '', 'type': 'string', 'description': 'OIDC client secret'},
+        'sso_oidc_discovery_url': {'value': '', 'type': 'string', 'description': 'OIDC discovery URL'},
+        'sso_saml_enabled': {'value': False, 'type': 'boolean', 'description': 'Enable SAML 2.0 login'},
+        'sso_saml_entity_id': {'value': '', 'type': 'string', 'description': 'SAML SP entity ID'},
+        'sso_saml_idp_metadata_url': {'value': '', 'type': 'string', 'description': 'SAML IdP metadata URL'},
+        'sso_saml_idp_sso_url': {'value': '', 'type': 'string', 'description': 'SAML IdP SSO URL'},
+        'sso_saml_idp_cert': {'value': '', 'type': 'string', 'description': 'SAML IdP certificate (PEM)'},
+        'sso_auto_provision': {'value': True, 'type': 'boolean', 'description': 'Auto-create users on first SSO login'},
+        'sso_default_role': {'value': 'developer', 'type': 'string', 'description': 'Default role for SSO-provisioned users'},
+        'sso_force_sso': {'value': False, 'type': 'boolean', 'description': 'Disable password login (SSO only)'},
+        'sso_allowed_domains': {'value': [], 'type': 'json', 'description': 'Restrict SSO to these email domains'},
+        # Rate limiting settings
+        'rate_limit_standard': {'value': '100 per minute', 'type': 'string', 'description': 'Rate limit for standard API keys'},
+        'rate_limit_elevated': {'value': '500 per minute', 'type': 'string', 'description': 'Rate limit for elevated API keys'},
+        'rate_limit_unlimited': {'value': '5000 per minute', 'type': 'string', 'description': 'Rate limit for unlimited API keys'},
+        'rate_limit_unauthenticated': {'value': '30 per minute', 'type': 'string', 'description': 'Rate limit for unauthenticated requests'},
     }
 
     @staticmethod
@@ -126,14 +152,18 @@ class SettingsService:
     @staticmethod
     def migrate_legacy_roles():
         """Migrate users with 'user' role to 'developer' role."""
-        users_to_migrate = User.query.filter_by(role='user').all()
-        count = 0
-        for user in users_to_migrate:
-            user.role = User.ROLE_DEVELOPER
-            count += 1
-        if count > 0:
-            db.session.commit()
-        return count
+        try:
+            users_to_migrate = User.query.filter_by(role='user').all()
+            count = 0
+            for user in users_to_migrate:
+                user.role = User.ROLE_DEVELOPER
+                count += 1
+            if count > 0:
+                db.session.commit()
+            return count
+        except Exception:
+            db.session.rollback()
+            return 0
 
     @staticmethod
     def ensure_admin_exists():

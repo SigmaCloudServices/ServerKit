@@ -7,6 +7,7 @@ import threading
 import queue
 
 from app import paths
+from app.utils.system import run_privileged, privileged_cmd, is_command_available, sourced_result
 
 
 class LogService:
@@ -73,74 +74,116 @@ class LogService:
 
     @classmethod
     def read_log(cls, filepath: str, lines: int = 100, from_end: bool = True) -> Dict:
-        """Read lines from a log file."""
+        """Read lines from a log file. Falls back to Python I/O when tail/head are unavailable."""
         if not cls.is_path_allowed(filepath):
             return {'success': False, 'error': 'Access denied: path not in allowed directories'}
 
         if not os.path.exists(filepath):
             return {'success': False, 'error': 'Log file not found'}
 
+        tool = 'tail' if from_end else 'head'
+
+        if is_command_available(tool):
+            try:
+                result = run_privileged(
+                    [tool, '-n', str(lines), filepath],
+                    timeout=30
+                )
+
+                if result.returncode == 0:
+                    log_lines = result.stdout.split('\n')
+                    return {**sourced_result(log_lines, tool, tool), 'filepath': filepath}
+                else:
+                    return {'success': False, 'error': result.stderr}
+
+            except Exception as e:
+                return {'success': False, 'error': str(e)}
+
+        # Fallback: Python file I/O
         try:
+            with open(filepath, 'r', errors='replace') as f:
+                all_lines = f.readlines()
+
             if from_end:
-                # Use tail to get last N lines
-                result = subprocess.run(
-                    ['sudo', 'tail', '-n', str(lines), filepath],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
+                log_lines = [l.rstrip('\n') for l in all_lines[-lines:]]
             else:
-                # Use head to get first N lines
-                result = subprocess.run(
-                    ['sudo', 'head', '-n', str(lines), filepath],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
+                log_lines = [l.rstrip('\n') for l in all_lines[:lines]]
 
-            if result.returncode == 0:
-                log_lines = result.stdout.split('\n')
-                return {
-                    'success': True,
-                    'lines': log_lines,
-                    'count': len(log_lines),
-                    'filepath': filepath
-                }
-            else:
-                return {'success': False, 'error': result.stderr}
+            return {**sourced_result(log_lines, 'python', 'direct file read'), 'filepath': filepath}
 
+        except PermissionError:
+            return {'success': False, 'error': f'Permission denied reading {filepath}'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
     @classmethod
     def search_log(cls, filepath: str, pattern: str, lines: int = 100) -> Dict:
-        """Search log file for pattern."""
+        """Search log file for pattern. Falls back to Python regex when grep is unavailable."""
         if not cls.is_path_allowed(filepath):
             return {'success': False, 'error': 'Access denied: path not in allowed directories'}
 
         if not os.path.exists(filepath):
             return {'success': False, 'error': 'Log file not found'}
 
+        if is_command_available('grep'):
+            try:
+                result = run_privileged(
+                    ['grep', '-i', '-m', str(lines), pattern, filepath],
+                    timeout=60
+                )
+
+                # grep returns 1 if no matches (not an error)
+                if result.returncode in [0, 1]:
+                    matches = result.stdout.split('\n') if result.stdout else []
+                    return {
+                        'success': True,
+                        'matches': [m for m in matches if m],
+                        'count': len([m for m in matches if m]),
+                        'pattern': pattern
+                    }
+                else:
+                    return {'success': False, 'error': result.stderr}
+
+            except Exception as e:
+                return {'success': False, 'error': str(e)}
+
+        # Fallback: Python regex search
+        import re
         try:
-            result = subprocess.run(
-                ['sudo', 'grep', '-i', '-m', str(lines), pattern, filepath],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            regex = re.compile(pattern, re.IGNORECASE)
+            matches = []
+            with open(filepath, 'r', errors='replace') as f:
+                for line in f:
+                    if regex.search(line):
+                        matches.append(line.rstrip('\n'))
+                        if len(matches) >= lines:
+                            break
 
-            # grep returns 1 if no matches (not an error)
-            if result.returncode in [0, 1]:
-                matches = result.stdout.split('\n') if result.stdout else []
-                return {
-                    'success': True,
-                    'matches': [m for m in matches if m],
-                    'count': len([m for m in matches if m]),
-                    'pattern': pattern
-                }
-            else:
-                return {'success': False, 'error': result.stderr}
+            return {
+                'success': True,
+                'matches': matches,
+                'count': len(matches),
+                'pattern': pattern
+            }
 
+        except re.error:
+            # Pattern might be a plain string, not valid regex — use substring match
+            matches = []
+            with open(filepath, 'r', errors='replace') as f:
+                for line in f:
+                    if pattern.lower() in line.lower():
+                        matches.append(line.rstrip('\n'))
+                        if len(matches) >= lines:
+                            break
+
+            return {
+                'success': True,
+                'matches': matches,
+                'count': len(matches),
+                'pattern': pattern
+            }
+        except PermissionError:
+            return {'success': False, 'error': f'Permission denied reading {filepath}'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -184,13 +227,7 @@ class LogService:
 
             if result.returncode == 0:
                 log_lines = result.stdout.split('\n') if result.stdout else []
-                return {
-                    'success': True,
-                    'lines': log_lines,
-                    'count': len(log_lines),
-                    'source': 'docker',
-                    'app_dir': app_dir
-                }
+                return {**sourced_result(log_lines, 'docker', 'Docker Compose'), 'app_dir': app_dir}
             else:
                 # Try with docker-compose (older syntax) as fallback
                 result = subprocess.run(
@@ -202,13 +239,7 @@ class LogService:
                 )
                 if result.returncode == 0:
                     log_lines = result.stdout.split('\n') if result.stdout else []
-                    return {
-                        'success': True,
-                        'lines': log_lines,
-                        'count': len(log_lines),
-                        'source': 'docker',
-                        'app_dir': app_dir
-                    }
+                    return {**sourced_result(log_lines, 'docker', 'Docker Compose (legacy)'), 'app_dir': app_dir}
                 return {'success': False, 'error': result.stderr or 'Failed to get Docker logs'}
 
         except FileNotFoundError:
@@ -221,9 +252,24 @@ class LogService:
     @classmethod
     def get_journalctl_logs(cls, unit: str = None, lines: int = 100,
                             since: str = None, priority: str = None) -> Dict:
-        """Get logs from systemd journal."""
+        """Get system logs, trying journalctl → syslog → Windows Event Log."""
+        if is_command_available('journalctl'):
+            return cls._read_journalctl(unit, lines, since, priority)
+
+        syslog_path = cls._find_syslog()
+        if syslog_path:
+            return cls._read_syslog(syslog_path, unit, lines)
+
+        if os.name == 'nt':
+            return cls._read_windows_eventlog(lines)
+
+        return {'success': False, 'error': 'No system log source available — journalctl, syslog, and Windows Event Log are all unavailable'}
+
+    @classmethod
+    def _read_journalctl(cls, unit: str, lines: int, since: str, priority: str) -> Dict:
+        """Read logs from systemd journal."""
         try:
-            cmd = ['sudo', 'journalctl', '-n', str(lines), '--no-pager', '-o', 'short-iso']
+            cmd = ['journalctl', '-n', str(lines), '--no-pager', '-o', 'short-iso']
 
             if unit:
                 cmd.extend(['-u', unit])
@@ -232,18 +278,72 @@ class LogService:
             if priority:
                 cmd.extend(['-p', priority])
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = run_privileged(cmd, timeout=60)
 
             if result.returncode == 0:
                 log_lines = result.stdout.split('\n')
-                return {
-                    'success': True,
-                    'lines': log_lines,
-                    'count': len(log_lines)
-                }
+                return sourced_result(log_lines, 'journalctl', 'systemd journal')
             else:
                 return {'success': False, 'error': result.stderr}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': 'journalctl command not found'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def _find_syslog() -> Optional[str]:
+        """Return the first existing syslog path, or None."""
+        for path in ['/var/log/syslog', '/var/log/messages']:
+            if os.path.exists(path):
+                return path
+        return None
+
+    @classmethod
+    def _read_syslog(cls, filepath: str, service: str, lines: int) -> Dict:
+        """Read system logs from a syslog file, optionally filtering by service."""
+        try:
+            if service:
+                result = run_privileged(
+                    ['bash', '-c', f'grep -i {subprocess.list2cmdline([service])} {subprocess.list2cmdline([filepath])} | tail -n {int(lines)}'],
+                    timeout=60,
+                )
+            else:
+                result = run_privileged(
+                    ['tail', '-n', str(lines), filepath],
+                    timeout=60,
+                )
+
+            if result.returncode == 0 or (service and result.returncode == 1):
+                log_lines = result.stdout.split('\n') if result.stdout else []
+                return sourced_result(log_lines, 'syslog', filepath)
+            else:
+                return {'success': False, 'error': result.stderr}
+
+        except FileNotFoundError:
+            return {'success': False, 'error': 'Required commands not found'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def _read_windows_eventlog(lines: int) -> Dict:
+        """Read system logs from Windows Event Log via wevtutil."""
+        try:
+            result = subprocess.run(
+                ['wevtutil', 'qe', 'System', f'/c:{int(lines)}', '/f:text', '/rd:true'],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            if result.returncode == 0:
+                log_lines = result.stdout.split('\n') if result.stdout else []
+                return sourced_result(log_lines, 'eventlog', 'Windows Event Log')
+            else:
+                return {'success': False, 'error': result.stderr}
+
+        except FileNotFoundError:
+            return {'success': False, 'error': 'wevtutil command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -257,10 +357,8 @@ class LogService:
             return {'success': False, 'error': 'Log file not found'}
 
         try:
-            result = subprocess.run(
-                ['sudo', 'truncate', '-s', '0', filepath],
-                capture_output=True,
-                text=True
+            result = run_privileged(
+                ['truncate', '-s', '0', filepath]
             )
 
             if result.returncode == 0:
@@ -268,6 +366,8 @@ class LogService:
             else:
                 return {'success': False, 'error': result.stderr}
 
+        except FileNotFoundError:
+            return {'success': False, 'error': 'truncate command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -275,10 +375,8 @@ class LogService:
     def rotate_logs(cls) -> Dict:
         """Trigger log rotation."""
         try:
-            result = subprocess.run(
-                ['sudo', 'logrotate', '-f', '/etc/logrotate.conf'],
-                capture_output=True,
-                text=True,
+            result = run_privileged(
+                ['logrotate', '-f', '/etc/logrotate.conf'],
                 timeout=120
             )
 
@@ -286,6 +384,8 @@ class LogService:
                 'success': result.returncode == 0,
                 'message': 'Logs rotated' if result.returncode == 0 else result.stderr
             }
+        except FileNotFoundError:
+            return {'success': False, 'error': 'logrotate command not found'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -302,7 +402,7 @@ class LogService:
 
         try:
             process = subprocess.Popen(
-                ['sudo', 'tail', '-f', '-n', '0', filepath],
+                privileged_cmd(['tail', '-f', '-n', '0', filepath]),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True

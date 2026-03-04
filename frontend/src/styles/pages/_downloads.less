@@ -74,14 +74,21 @@
 
     // Version Banner
     .version-banner {
-        background: linear-gradient(135deg, @accent-primary 0%, #4f46e5 100%);
+        background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-hover) 100%);
         border-radius: @radius-lg;
-        padding: @space-6;
+        padding: @space-6 @space-8;
         margin-bottom: @space-8;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        color: var(--text-primary);
+        color: @white;
+
+        @media (max-width: @breakpoint-md) {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: @space-4;
+            padding: @space-5;
+        }
 
         .version-info {
             display: flex;
@@ -99,29 +106,57 @@
                 font-size: @font-size-3xl;
                 font-weight: 700;
             }
+
+            .version-date {
+                font-size: @font-size-sm;
+                opacity: 0.75;
+            }
         }
 
-        .version-meta {
+        .version-actions {
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: @space-2;
+            align-items: center;
+            gap: @space-3;
+        }
 
-            span {
-                font-size: @font-size-sm;
-                opacity: 0.9;
+        .btn-banner-outline {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: @white;
+            padding: @space-2 @space-4;
+            border-radius: @radius-md;
+            font-size: @font-size-sm;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.7);
+            }
+        }
+
+        .btn-banner-primary {
+            background: @white;
+            color: @accent-primary;
+            border: none;
+            padding: @space-2 @space-5;
+            border-radius: @radius-md;
+            font-size: @font-size-sm;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: @space-2;
+            transition: all 0.2s;
+
+            svg {
+                width: 16px;
+                height: 16px;
             }
 
-            .release-notes-link {
-                color: @white;
-                text-decoration: underline;
-                font-size: @font-size-sm;
-                opacity: 0.9;
-                transition: opacity 0.2s;
-
-                &:hover {
-                    opacity: 1;
-                }
+            &:hover {
+                background: rgba(255, 255, 255, 0.9);
+                transform: translateY(-1px);
             }
         }
     }
@@ -161,10 +196,12 @@
         background: @bg-card;
         border: 1px solid @border-default;
         border-radius: @radius-lg;
-        padding: @space-5;
+        padding: @space-6;
         display: flex;
         flex-direction: column;
-        gap: @space-4;
+        align-items: center;
+        text-align: center;
+        gap: @space-3;
         transition: all 0.2s;
 
         &:hover {
@@ -181,28 +218,33 @@
             }
         }
 
-        .platform-header {
+        .platform-icon-wrapper {
+            width: 56px;
+            height: 56px;
             display: flex;
             align-items: center;
-            gap: @space-3;
+            justify-content: center;
+            background: @bg-elevated;
+            border-radius: @radius-lg;
+            margin-bottom: @space-1;
 
             .platform-icon {
-                width: 40px;
-                height: 40px;
+                width: 32px;
+                height: 32px;
                 color: @text-primary;
             }
+        }
 
-            .platform-info {
-                h3 {
-                    font-size: @font-size-lg;
-                    font-weight: 600;
-                    margin: 0;
-                }
+        .platform-info {
+            h3 {
+                font-size: @font-size-lg;
+                font-weight: 600;
+                margin: 0 0 @space-1;
+            }
 
-                .platform-arch {
-                    font-size: @font-size-sm;
-                    color: @text-secondary;
-                }
+            .platform-arch {
+                font-size: @font-size-sm;
+                color: @text-secondary;
             }
         }
 
@@ -212,6 +254,7 @@
             justify-content: center;
             gap: @space-2;
             width: 100%;
+            margin-top: auto;
 
             svg {
                 width: 18px;
@@ -335,7 +378,7 @@
             justify-content: center;
             font-weight: 600;
             font-size: @font-size-sm;
-            color: var(--text-primary);
+            color: @white;
         }
 
         .step-content {

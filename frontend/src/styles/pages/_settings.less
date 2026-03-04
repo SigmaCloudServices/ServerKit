@@ -186,7 +186,7 @@
             margin-bottom: @space-2;
         }
 
-        input, select, textarea {
+        input:not([type="checkbox"]):not([type="radio"]), select, textarea {
             width: 100%;
             padding: @space-3;
             background: @bg-hover;
@@ -316,7 +316,7 @@
 
     &.active {
         border-color: @accent-primary;
-        background: fade(@accent-primary, 5%);
+        background: fade(@accent-primary-raw, 5%);
     }
 
     span {
@@ -482,7 +482,7 @@
         }
 
         &:focus + .toggle-slider {
-            box-shadow: 0 0 0 2px fade(@accent-primary, 30%);
+            box-shadow: 0 0 0 2px fade(@accent-primary-raw, 30%);
         }
     }
 
@@ -508,6 +508,28 @@
             border-radius: 50%;
             transition: transform @transition-fast;
         }
+    }
+}
+
+// Toggle Label (checkbox + text inline)
+.toggle-label {
+    display: flex !important;
+    align-items: center;
+    gap: @space-3;
+    cursor: pointer;
+
+    input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: @accent-primary;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    span {
+        font-size: @font-size-sm;
+        font-weight: @font-weight-medium;
+        color: @text-primary;
     }
 }
 
@@ -696,8 +718,8 @@
 // Star Prompt Card
 .star-prompt-card {
     position: relative;
-    background: linear-gradient(135deg, @accent-glow 0%, fade(@accent-primary, 8%) 100%);
-    border: 1px solid fade(@accent-primary, 30%);
+    background: linear-gradient(135deg, @accent-glow 0%, fade(@accent-primary-raw, 8%) 100%);
+    border: 1px solid fade(@accent-primary-raw, 30%);
     border-radius: @radius-lg;
     padding: @space-6;
     display: flex;
@@ -972,5 +994,504 @@
     &.copied .icon-reference-name {
         color: @success;
         font-weight: @font-weight-medium;
+    }
+}
+
+// ============================================
+// ACCENT COLOR PRESETS
+// ============================================
+
+.accent-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: @space-2;
+    margin-bottom: @space-4;
+
+    @media (max-width: @breakpoint-sm) {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.accent-preset {
+    display: flex;
+    align-items: center;
+    gap: @space-2;
+    padding: @space-2 @space-3;
+    background: transparent;
+    border: 2px solid @border-subtle;
+    border-radius: @radius-md;
+    cursor: pointer;
+    transition: all @transition-fast;
+
+    &:hover {
+        border-color: @border-active;
+    }
+
+    &.active {
+        border-color: @accent-primary;
+        background: @bg-hover;
+    }
+}
+
+.accent-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: @radius-full;
+    flex-shrink: 0;
+}
+
+.accent-label {
+    font-size: @font-size-sm;
+    font-weight: @font-weight-medium;
+    color: @text-primary;
+}
+
+.accent-custom {
+    padding-top: @space-3;
+    border-top: 1px solid @border-subtle;
+}
+
+.accent-custom-label {
+    display: block;
+    font-size: @font-size-sm;
+    font-weight: @font-weight-medium;
+    color: @text-secondary;
+    margin-bottom: @space-2;
+}
+
+.accent-custom-row {
+    display: flex;
+    align-items: center;
+    gap: @space-3;
+}
+
+.accent-custom-input {
+    width: 40px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid @border-subtle;
+    border-radius: @radius-md;
+    background: transparent;
+    cursor: pointer;
+
+    &::-webkit-color-swatch-wrapper {
+        padding: 2px;
+    }
+
+    &::-webkit-color-swatch {
+        border: none;
+        border-radius: @radius-sm;
+    }
+}
+
+.accent-custom-hex {
+    font-family: @font-mono;
+    font-size: @font-size-sm;
+    color: @text-secondary;
+}
+
+// ============================================
+// DASHBOARD WIDGET CONFIG
+// ============================================
+
+.widget-list {
+    display: flex;
+    flex-direction: column;
+    gap: @space-2;
+}
+
+.widget-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: @space-3 @space-4;
+    background: @bg-hover;
+    border-radius: @radius-md;
+    transition: opacity @transition-fast;
+
+    &--hidden {
+        opacity: 0.5;
+    }
+}
+
+.widget-item__info {
+    display: flex;
+    align-items: center;
+    gap: @space-3;
+}
+
+.widget-item__label {
+    font-size: @font-size-sm;
+    font-weight: @font-weight-medium;
+    color: @text-primary;
+}
+
+.widget-item__controls {
+    display: flex;
+    gap: @space-1;
+}
+
+.widget-move-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid @border-subtle;
+    border-radius: @radius-sm;
+    color: @text-secondary;
+    cursor: pointer;
+    transition: all @transition-fast;
+
+    &:hover:not(:disabled) {
+        background: @bg-card;
+        color: @text-primary;
+        border-color: @border-active;
+    }
+
+    &:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+}
+
+// ============================================
+// WHITE LABEL / CUSTOM BRANDING
+// ============================================
+
+.whitelabel-modes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: @space-3;
+    margin-top: @space-4;
+
+    @media (max-width: @breakpoint-md) {
+        grid-template-columns: 1fr;
+    }
+}
+
+.whitelabel-mode {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: @space-2;
+    padding: @space-4;
+    background: transparent;
+    border: 2px solid @border-subtle;
+    border-radius: @radius-lg;
+    cursor: pointer;
+    transition: all @transition-fast;
+    text-align: center;
+    color: @text-secondary;
+
+    svg {
+        opacity: 0.7;
+    }
+
+    &:hover {
+        border-color: @border-active;
+    }
+
+    &.active {
+        border-color: @accent-primary;
+        background: fade(@accent-primary-raw, 5%);
+        color: @text-primary;
+
+        svg {
+            color: @accent-primary;
+            opacity: 1;
+        }
+    }
+
+    .whitelabel-mode__label {
+        font-size: @font-size-sm;
+        font-weight: @font-weight-medium;
+        color: @text-primary;
+    }
+
+    .whitelabel-mode__desc {
+        font-size: @font-size-xs;
+        color: @text-tertiary;
+    }
+}
+
+.whitelabel-fields {
+    margin-top: @space-4;
+    display: flex;
+    flex-direction: column;
+    gap: @space-4;
+
+    .form-group {
+        label {
+            display: block;
+            font-size: @font-size-sm;
+            font-weight: @font-weight-medium;
+            color: @text-secondary;
+            margin-bottom: @space-2;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            max-width: 320px;
+            padding: @space-3;
+            background: @bg-hover;
+            border: 1px solid @border-subtle;
+            border-radius: @radius-md;
+            color: @text-primary;
+            font-size: @font-size-sm;
+            transition: border-color @transition-fast;
+
+            &:focus {
+                outline: none;
+                border-color: @accent-primary;
+            }
+        }
+    }
+}
+
+.whitelabel-upload {
+    border: 2px dashed @border-subtle;
+    border-radius: @radius-lg;
+    padding: @space-5;
+    cursor: pointer;
+    transition: all @transition-fast;
+    text-align: center;
+
+    &:hover {
+        border-color: @accent-primary;
+        background: fade(@accent-primary-raw, 3%);
+    }
+
+    .whitelabel-upload__placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: @space-2;
+        color: @text-tertiary;
+
+        svg {
+            opacity: 0.5;
+        }
+
+        span {
+            font-size: @font-size-sm;
+        }
+    }
+
+    .whitelabel-upload__hint {
+        font-size: @font-size-xs !important;
+        color: @text-tertiary;
+        opacity: 0.7;
+    }
+}
+
+.whitelabel-logo-preview {
+    display: flex;
+    align-items: center;
+    gap: @space-4;
+    justify-content: center;
+
+    img {
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+        border-radius: @radius-md;
+        border: 1px solid @border-subtle;
+        background: @bg-hover;
+        padding: @space-1;
+    }
+}
+
+.whitelabel-preview {
+    margin-top: @space-4;
+
+    .whitelabel-preview__label {
+        display: block;
+        font-size: @font-size-xs;
+        font-weight: @font-weight-semibold;
+        color: @text-tertiary;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: @space-2;
+    }
+
+    .whitelabel-preview__box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 70px;
+        padding: 0 @space-4;
+        background: @bg-body;
+        border: 1px solid @border-subtle;
+        border-radius: @radius-lg;
+    }
+}
+
+.whitelabel-star-prompt {
+    margin-top: @space-4;
+    background: linear-gradient(135deg, @accent-glow 0%, fade(@accent-primary-raw, 8%) 100%);
+    border: 1px solid fade(@accent-primary-raw, 30%);
+    border-radius: @radius-lg;
+    padding: @space-5;
+    display: flex;
+    align-items: flex-start;
+    gap: @space-4;
+
+    .star-icon {
+        flex-shrink: 0;
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, @warning 0%, darken(@warning, 10%) 100%);
+        border-radius: @radius-lg;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+    }
+
+    .star-content {
+        flex: 1;
+
+        h4 {
+            margin: 0 0 @space-2;
+            font-size: @font-size-md;
+            font-weight: @font-weight-semibold;
+        }
+
+        p {
+            margin: 0 0 @space-3;
+            font-size: @font-size-sm;
+            color: @text-secondary;
+            line-height: @line-height-relaxed;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: @space-2;
+        }
+    }
+
+    @media (max-width: @breakpoint-sm) {
+        flex-direction: column;
+    }
+}
+
+// ============================================
+// SSO CONFIG & LINKED ACCOUNTS
+// ============================================
+
+.sso-config {
+    display: flex;
+    flex-direction: column;
+    gap: @space-5;
+}
+
+.sso-provider-config {
+    border: 1px solid @border-subtle;
+
+    &--enabled {
+        border-color: @accent-primary;
+    }
+
+    .sso-provider-config__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        padding: @space-4;
+
+        &:hover {
+            background: @bg-hover;
+        }
+    }
+
+    .sso-provider-config__title {
+        display: flex;
+        align-items: center;
+        gap: @space-3;
+
+        h3 {
+            margin: 0;
+        }
+    }
+
+    .sso-provider-config__status {
+        font-size: @font-size-xs;
+        padding: @space-1 @space-2;
+        border-radius: @radius-full;
+        font-weight: @font-weight-medium;
+
+        &--active {
+            background: fade(@color-success, 15%);
+            color: @color-success;
+        }
+    }
+
+    .sso-provider-config__body {
+        padding: @space-1 @space-4 @space-4;
+        border-top: 1px solid @border-subtle;
+        display: flex;
+        flex-direction: column;
+        gap: @space-4;
+    }
+
+    .sso-provider-config__actions {
+        display: flex;
+        gap: @space-3;
+        padding-top: @space-2;
+    }
+}
+
+// Linked accounts (Security tab)
+.linked-accounts-list {
+    display: flex;
+    flex-direction: column;
+    gap: @space-3;
+    margin: @space-4 0;
+}
+
+.linked-account {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: @space-3;
+    background: @bg-secondary;
+    border-radius: @radius-lg;
+    border: 1px solid @border-subtle;
+
+    .linked-account__info {
+        display: flex;
+        align-items: center;
+        gap: @space-3;
+
+        div {
+            display: flex;
+            flex-direction: column;
+        }
+    }
+
+    .linked-account__provider {
+        font-weight: @font-weight-medium;
+        text-transform: capitalize;
+    }
+
+    .linked-account__email {
+        font-size: @font-size-sm;
+        color: @text-secondary;
+    }
+}
+
+.linked-accounts-available {
+    display: flex;
+    gap: @space-3;
+    margin-top: @space-3;
+    flex-wrap: wrap;
+
+    .btn {
+        display: flex;
+        align-items: center;
+        gap: @space-2;
     }
 }

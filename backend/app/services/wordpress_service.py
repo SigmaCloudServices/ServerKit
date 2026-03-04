@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 from pathlib import Path
 
 from app import paths
+from app.utils.system import run_privileged, privileged_cmd
 
 
 class WordPressService:
@@ -41,13 +42,16 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
             commands = [
                 ['curl', '-O', 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar'],
                 ['chmod', '+x', 'wp-cli.phar'],
-                ['sudo', 'mv', 'wp-cli.phar', cls.WP_CLI_PATH]
             ]
 
             for cmd in commands:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 if result.returncode != 0:
                     return {'success': False, 'error': result.stderr}
+
+            result = run_privileged(['mv', 'wp-cli.phar', cls.WP_CLI_PATH], timeout=120)
+            if result.returncode != 0:
+                return {'success': False, 'error': result.stderr}
 
             return {'success': True, 'message': 'WP-CLI installed successfully'}
         except Exception as e:
@@ -67,7 +71,7 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
                 return install_result
 
         try:
-            cmd = ['sudo', '-u', user, cls.WP_CLI_PATH, '--path=' + path] + command
+            cmd = privileged_cmd([cls.WP_CLI_PATH, '--path=' + path] + command, user=user)
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -157,8 +161,8 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
 
         try:
             # Create directory
-            subprocess.run(['sudo', 'mkdir', '-p', path], capture_output=True)
-            subprocess.run(['sudo', 'chown', 'www-data:www-data', path], capture_output=True)
+            run_privileged(['mkdir', '-p', path])
+            run_privileged(['chown', 'www-data:www-data', path])
 
             # Download WordPress
             download_result = cls.wp_cli(path, ['core', 'download', '--locale=en_US'])
@@ -228,7 +232,7 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
                 updates = json.loads(update_result['output'])
                 info['update_available'] = len(updates) > 0
                 info['latest_version'] = updates[0]['version'] if updates else info.get('version')
-            except:
+            except Exception:
                 info['update_available'] = False
 
         # Get site URL
@@ -265,7 +269,7 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
         if result['success']:
             try:
                 return json.loads(result['output'])
-            except:
+            except Exception:
                 return []
         return []
 
@@ -325,7 +329,7 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
         if result['success']:
             try:
                 return json.loads(result['output'])
-            except:
+            except Exception:
                 return []
         return []
 
@@ -357,13 +361,12 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
 
         try:
             # Create backup directory
-            subprocess.run(['sudo', 'mkdir', '-p', backup_path], capture_output=True)
+            run_privileged(['mkdir', '-p', backup_path])
 
             # Backup files
             files_backup = os.path.join(backup_path, 'files.tar.gz')
-            subprocess.run(
-                ['sudo', 'tar', '-czf', files_backup, '-C', os.path.dirname(path), os.path.basename(path)],
-                capture_output=True,
+            run_privileged(
+                ['tar', '-czf', files_backup, '-C', os.path.dirname(path), os.path.basename(path)],
                 timeout=600
             )
 
@@ -379,7 +382,7 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
                 size = sum(os.path.getsize(os.path.join(backup_path, f))
                           for f in os.listdir(backup_path)
                           if os.path.isfile(os.path.join(backup_path, f)))
-            except:
+            except Exception:
                 size = 0
 
             return {
@@ -433,7 +436,7 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
                         'size': size,
                         'timestamp': timestamp
                     })
-        except:
+        except Exception:
             pass
 
         return sorted(backups, key=lambda x: x['timestamp'], reverse=True)
@@ -454,12 +457,11 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
             if os.path.exists(files_backup):
                 # Remove existing files
                 if os.path.exists(target_path):
-                    subprocess.run(['sudo', 'rm', '-rf', target_path], capture_output=True)
+                    run_privileged(['rm', '-rf', target_path])
 
                 # Extract backup
-                subprocess.run(
-                    ['sudo', 'tar', '-xzf', files_backup, '-C', os.path.dirname(target_path)],
-                    capture_output=True,
+                run_privileged(
+                    ['tar', '-xzf', files_backup, '-C', os.path.dirname(target_path)],
                     timeout=600
                 )
 
@@ -486,7 +488,7 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
             return {'success': False, 'error': 'Backup not found'}
 
         try:
-            subprocess.run(['sudo', 'rm', '-rf', backup_path], capture_output=True)
+            run_privileged(['rm', '-rf', backup_path])
             return {'success': True, 'message': 'Backup deleted'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
@@ -531,26 +533,24 @@ define('WP_AUTO_UPDATE_CORE', 'minor');
         """Set secure file permissions for WordPress."""
         try:
             # Set ownership
-            subprocess.run(['sudo', 'chown', '-R', 'www-data:www-data', path], capture_output=True)
+            run_privileged(['chown', '-R', 'www-data:www-data', path])
 
             # Set directory permissions
-            subprocess.run(
-                ['sudo', 'find', path, '-type', 'd', '-exec', 'chmod', '755', '{}', ';'],
-                capture_output=True
+            run_privileged(
+                ['find', path, '-type', 'd', '-exec', 'chmod', '755', '{}', ';']
             )
 
             # Set file permissions
-            subprocess.run(
-                ['sudo', 'find', path, '-type', 'f', '-exec', 'chmod', '644', '{}', ';'],
-                capture_output=True
+            run_privileged(
+                ['find', path, '-type', 'f', '-exec', 'chmod', '644', '{}', ';']
             )
 
             # Protect wp-config.php
             wp_config = os.path.join(path, 'wp-config.php')
             if os.path.exists(wp_config):
-                subprocess.run(['sudo', 'chmod', '600', wp_config], capture_output=True)
+                run_privileged(['chmod', '600', wp_config])
 
-        except:
+        except Exception:
             pass
 
     @classmethod
@@ -598,13 +598,11 @@ RewriteRule ^wp-content/uploads/.*\\.php$ - [F]
             # Only add if not already present
             if '# ServerKit Security Rules' not in existing:
                 new_content = security_rules + '\n' + existing
-                subprocess.run(
-                    ['sudo', 'tee', htaccess_path],
-                    input=new_content,
-                    capture_output=True,
-                    text=True
+                run_privileged(
+                    ['tee', htaccess_path],
+                    input=new_content
                 )
-        except:
+        except Exception:
             pass
 
     @classmethod

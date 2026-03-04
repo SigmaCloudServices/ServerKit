@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Star, Settings, LogOut, Sun, Moon, Monitor, ChevronRight, ChevronUp } from 'lucide-react';
+import { Star, Settings, LogOut, Sun, Moon, Monitor, ChevronRight, ChevronUp, Layers } from 'lucide-react';
 import { api } from '../services/api';
-import ServerKitLogo from '../assets/ServerKitLogo.svg';
+import ServerKitLogo from './ServerKitLogo';
 
 const Sidebar = () => {
     const { user, logout } = useAuth();
-    const { theme, resolvedTheme, setTheme } = useTheme();
+    const { theme, resolvedTheme, setTheme, whiteLabel } = useTheme();
     const navigate = useNavigate();
     const [starAnimating, setStarAnimating] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -35,6 +35,8 @@ const Sidebar = () => {
     }, []);
 
     useEffect(() => {
+        if (whiteLabel.enabled) return;
+
         let playCount = 0;
         let timeoutId;
 
@@ -68,32 +70,63 @@ const Sidebar = () => {
             clearTimeout(initialDelay);
             clearTimeout(timeoutId);
         };
-    }, []);
+    }, [whiteLabel.enabled]);
 
     return (
         <aside className="sidebar">
-            <div className="brand-section">
-                <div className="brand-logo">
-                    <img src={ServerKitLogo} alt="ServerKit" width="42" height="42" />
+            {whiteLabel.enabled ? (
+                <div className="brand-section brand-section--custom">
+                    {whiteLabel.mode === 'image_full' ? (
+                        <div className="brand-custom-banner">
+                            {whiteLabel.logoData ? (
+                                <img src={whiteLabel.logoData} alt={whiteLabel.brandName || 'Brand'} />
+                            ) : (
+                                <Layers size={32} />
+                            )}
+                        </div>
+                    ) : whiteLabel.mode === 'text_only' ? (
+                        <span className="brand-custom-text">
+                            {whiteLabel.brandName || 'Brand'}
+                        </span>
+                    ) : (
+                        <>
+                            <div className="brand-custom-logo">
+                                {whiteLabel.logoData ? (
+                                    <img src={whiteLabel.logoData} alt={whiteLabel.brandName || 'Brand'} />
+                                ) : (
+                                    <Layers size={20} />
+                                )}
+                            </div>
+                            <span className="brand-custom-text">
+                                {whiteLabel.brandName || 'Brand'}
+                            </span>
+                        </>
+                    )}
                 </div>
-                <span className="brand-text">ServerKit</span>
-                <a
-                    href="https://github.com/jhd3197/ServerKit"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`brand-star ${starAnimating ? 'animating' : ''}`}
-                    title="Star on GitHub"
-                >
-                    <Star size={14} />
-                    <span className="star-particles">
-                        <span></span><span></span><span></span><span></span><span></span><span></span>
-                    </span>
-                    <span className="star-ring"></span>
-                    <span className="star-ring ring-2"></span>
-                    <span className="star-ring ring-3"></span>
-                    <span className="star-tooltip">Star us!</span>
-                </a>
-            </div>
+            ) : (
+                <div className="brand-section">
+                    <div className="brand-logo">
+                        <ServerKitLogo width={42} height={42} />
+                    </div>
+                    <span className="brand-text">ServerKit</span>
+                    <a
+                        href="https://github.com/jhd3197/ServerKit"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`brand-star ${starAnimating ? 'animating' : ''}`}
+                        title="Star on GitHub"
+                    >
+                        <Star size={14} />
+                        <span className="star-particles">
+                            <span></span><span></span><span></span><span></span><span></span><span></span>
+                        </span>
+                        <span className="star-ring"></span>
+                        <span className="star-ring ring-2"></span>
+                        <span className="star-ring ring-3"></span>
+                        <span className="star-tooltip">Star us!</span>
+                    </a>
+                </div>
+            )}
 
             <div className="nav-scroll">
                 <div className="nav-category">Overview</div>
@@ -249,6 +282,13 @@ const Sidebar = () => {
                             <path d="M12 8v4m0 4h.01"/>
                         </svg>
                         Security
+                    </NavLink>
+                    <NavLink to="/email" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                        Email Server
                     </NavLink>
                 </nav>
 

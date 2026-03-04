@@ -39,6 +39,19 @@ class AuditLog(db.Model):
     ACTION_DEPLOY = 'app.deploy'
     ACTION_BACKUP_CREATE = 'backup.create'
     ACTION_BACKUP_RESTORE = 'backup.restore'
+    ACTION_SSO_LOGIN = 'sso.login'
+    ACTION_SSO_LOGIN_FAILED = 'sso.login_failed'
+    ACTION_SSO_PROVISION = 'sso.provision'
+    ACTION_SSO_LINK = 'sso.link'
+    ACTION_SSO_UNLINK = 'sso.unlink'
+    ACTION_API_KEY_CREATE = 'api_key.create'
+    ACTION_API_KEY_REVOKE = 'api_key.revoke'
+    ACTION_API_KEY_ROTATE = 'api_key.rotate'
+    ACTION_INVITATION_CREATE = 'invitation.create'
+    ACTION_INVITATION_REVOKE = 'invitation.revoke'
+    ACTION_INVITATION_ACCEPT = 'invitation.accept'
+    ACTION_USER_PERMISSIONS_UPDATE = 'user.permissions_update'
+    ACTION_USER_PERMISSIONS_RESET = 'user.permissions_reset'
 
     def get_details(self):
         """Return parsed details JSON."""

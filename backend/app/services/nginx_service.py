@@ -4,7 +4,7 @@ import re
 from typing import Dict, List, Optional
 from pathlib import Path
 
-from app.utils.system import ServiceControl, run_privileged
+from app.utils.system import ServiceControl, run_privileged, is_command_available
 
 
 class NginxService:
@@ -293,6 +293,9 @@ server {{
     @classmethod
     def test_config(cls) -> Dict:
         """Test Nginx configuration syntax."""
+        if not is_command_available('nginx'):
+            return {'success': False, 'error': 'nginx is not installed'}
+
         try:
             result = run_privileged([cls.NGINX_BIN, '-t'], timeout=30)
             return {

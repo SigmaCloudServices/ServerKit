@@ -52,3 +52,73 @@
         }
     }
 }
+
+// SSO login buttons
+.sso-providers {
+    display: flex;
+    flex-direction: column;
+    gap: @space-3;
+}
+
+.btn-sso {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: @space-3;
+    width: 100%;
+    padding: @space-3 @space-4;
+    border: 1px solid @border-subtle;
+    border-radius: @radius-lg;
+    background: @bg-card;
+    color: @text-primary;
+    font-size: @font-size-sm;
+    font-weight: @font-weight-medium;
+    cursor: pointer;
+    transition: all @transition-fast;
+
+    &:hover:not(:disabled) {
+        border-color: @border-active;
+        background: @bg-hover;
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    svg {
+        flex-shrink: 0;
+    }
+}
+
+.sso-divider {
+    display: flex;
+    align-items: center;
+    gap: @space-4;
+    margin: @space-6 0;
+    color: @text-tertiary;
+    font-size: @font-size-sm;
+
+    &::before,
+    &::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: @border-subtle;
+    }
+}
+
+.sso-loading {
+    display: flex;
+    justify-content: center;
+    margin-bottom: @space-4;
+
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

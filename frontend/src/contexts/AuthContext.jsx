@@ -9,6 +9,10 @@ export function AuthProvider({ children }) {
     const [setupStatus, setSetupStatus] = useState({
         needsSetup: false,
         registrationEnabled: false,
+        ssoProviders: [],
+        passwordLoginEnabled: true,
+        needsMigration: false,
+        migrationInfo: null,
         checked: false
     });
 
@@ -22,6 +26,10 @@ export function AuthProvider({ children }) {
             setSetupStatus({
                 needsSetup: status.needs_setup,
                 registrationEnabled: status.registration_enabled,
+                ssoProviders: status.sso_providers || [],
+                passwordLoginEnabled: status.password_login_enabled !== false,
+                needsMigration: status.needs_migration || false,
+                migrationInfo: status.migration_info || null,
                 checked: true
             });
 
@@ -54,6 +62,10 @@ export function AuthProvider({ children }) {
             setSetupStatus({
                 needsSetup: status.needs_setup,
                 registrationEnabled: status.registration_enabled,
+                ssoProviders: status.sso_providers || [],
+                passwordLoginEnabled: status.password_login_enabled !== false,
+                needsMigration: status.needs_migration || false,
+                migrationInfo: status.migration_info || null,
                 checked: true
             });
         } catch (error) {
@@ -67,19 +79,20 @@ export function AuthProvider({ children }) {
         return data;
     }
 
-    async function register(email, username, password) {
-        const data = await api.register(email, username, password);
+    async function register(email, username, password, inviteToken) {
+        const data = await api.register(email, username, password, inviteToken);
         setUser(data.user);
         return data;
     }
 
     async function completeOnboarding(useCases) {
         await api.completeOnboarding(useCases);
-        setSetupStatus({
+        setSetupStatus(prev => ({
+            ...prev,
             needsSetup: false,
             registrationEnabled: false,
             checked: true
-        });
+        }));
     }
 
     function logout() {
@@ -99,6 +112,14 @@ export function AuthProvider({ children }) {
         return data.user;
     }
 
+    function hasPermission(feature, level = 'read') {
+        if (!user) return false;
+        if (user.role === 'admin') return true;
+        const perms = user.permissions || {};
+        const featurePerms = perms[feature] || {};
+        return !!featurePerms[level];
+    }
+
     const value = {
         user,
         setUser,
@@ -110,13 +131,18 @@ export function AuthProvider({ children }) {
         updateUser,
         refreshUser,
         refreshSetupStatus,
+        hasPermission,
         isAuthenticated: !!user,
         isAdmin: user?.role === 'admin',
         isDeveloper: user?.role === 'admin' || user?.role === 'developer',
         isViewer: !!user?.role,
         setupStatus,
         needsSetup: setupStatus.needsSetup,
+        needsMigration: setupStatus.needsMigration,
+        migrationInfo: setupStatus.migrationInfo,
         registrationEnabled: setupStatus.registrationEnabled,
+        ssoProviders: setupStatus.ssoProviders,
+        passwordLoginEnabled: setupStatus.passwordLoginEnabled,
     };
 
     return (

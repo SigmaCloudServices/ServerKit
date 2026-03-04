@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from pathlib import Path
 
-from app.utils.system import ServiceControl, run_privileged
+from app.utils.system import ServiceControl, run_privileged, PackageManager, is_command_available
 
 
 class SSLService:
@@ -18,26 +18,17 @@ class SSLService:
     @classmethod
     def is_certbot_installed(cls) -> bool:
         """Check if certbot is installed."""
-        try:
-            result = subprocess.run(
-                ['which', 'certbot'],
-                capture_output=True,
-                text=True
-            )
-            return result.returncode == 0
-        except Exception:
-            return False
+        return is_command_available('certbot')
 
     @classmethod
     def install_certbot(cls) -> Dict:
         """Install certbot if not present."""
-        try:
-            result = run_privileged(['apt-get', 'update'], timeout=300)
-            if result.returncode != 0:
-                return {'success': False, 'error': result.stderr}
+        if not PackageManager.is_available():
+            return {'success': False, 'error': 'No supported package manager found'}
 
-            result = run_privileged(
-                ['apt-get', 'install', '-y', 'certbot', 'python3-certbot-nginx'],
+        try:
+            result = PackageManager.install(
+                ['certbot', 'python3-certbot-nginx'],
                 timeout=300,
             )
             if result.returncode != 0:
@@ -180,7 +171,7 @@ class SSLService:
                             expiry_part = expiry_str.split(' (')[0]
                             current_cert['expiry'] = expiry_part
                             current_cert['expiry_valid'] = 'VALID' in expiry_str
-                        except:
+                        except Exception:
                             current_cert['expiry'] = expiry_str
                     elif line.startswith('Certificate Path:'):
                         current_cert['cert_path'] = line.split(':', 1)[1].strip()
@@ -190,7 +181,7 @@ class SSLService:
             if current_cert:
                 certificates.append(current_cert)
 
-        except Exception as e:
+        except Exception:
             pass
 
         return certificates
@@ -226,7 +217,7 @@ class SSLService:
 
             return info
 
-        except Exception as e:
+        except Exception:
             return None
 
     @classmethod
