@@ -13,7 +13,7 @@ const CHART_COLORS = {
     disk: '#f59e0b'      // Amber/Orange (Disk)
 };
 
-const MetricsGraph = ({ compact = false, timezone }) => {
+const MetricsGraph = ({ compact = false, timezone, serverId }) => {
     const [data, setData] = useState(null);
     const [period, setPeriod] = useState('1h');
     const [loading, setLoading] = useState(true);
@@ -35,12 +35,14 @@ const MetricsGraph = ({ compact = false, timezone }) => {
 
     useEffect(() => {
         loadHistory();
-    }, [period]);
+    }, [period, serverId]);
 
     async function loadHistory() {
         try {
             setLoading(true);
-            const response = await api.getMetricsHistory(period);
+            const response = serverId
+                ? await api.getServerMetricsHistory(serverId, period)
+                : await api.getMetricsHistory(period);
             setData(response);
             setError(null);
         } catch (err) {
@@ -64,9 +66,9 @@ const MetricsGraph = ({ compact = false, timezone }) => {
 
     const chartData = data?.data?.map(point => ({
         time: formatTimestamp(point.timestamp),
-        cpu: point.cpu.percent,
-        memory: point.memory.percent,
-        disk: point.disk.percent
+        cpu: point.cpu?.percent ?? point.cpu_percent ?? 0,
+        memory: point.memory?.percent ?? point.memory_percent ?? 0,
+        disk: point.disk?.percent ?? point.disk_percent ?? 0
     })) || [];
 
     // Auto-zoom: compute Y-axis ceiling from visible metrics

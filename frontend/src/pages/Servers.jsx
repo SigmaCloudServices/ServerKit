@@ -24,25 +24,13 @@ const Servers = () => {
                 api.getServers(),
                 api.getServerGroups()
             ]);
-            setServers(serversData.servers || []);
-            setGroups(groupsData.groups || []);
+            setServers(Array.isArray(serversData) ? serversData : []);
+            setGroups(Array.isArray(groupsData) ? groupsData : []);
         } catch (err) {
             console.error('Failed to load servers:', err);
             toast.error('Failed to load servers');
         } finally {
             setLoading(false);
-        }
-    }
-
-    async function handleDeleteServer(serverId) {
-        if (!confirm('Are you sure you want to remove this server?')) return;
-
-        try {
-            await api.deleteServer(serverId);
-            toast.success('Server removed successfully');
-            loadData();
-        } catch (err) {
-            toast.error(err.message || 'Failed to remove server');
         }
     }
 
@@ -180,7 +168,6 @@ const Servers = () => {
                         <ServerCard
                             key={server.id}
                             server={server}
-                            onDelete={() => handleDeleteServer(server.id)}
                             onPing={() => handlePingServer(server.id)}
                         />
                     ))}
@@ -209,7 +196,7 @@ const Servers = () => {
     );
 };
 
-const ServerCard = ({ server, onDelete, onPing }) => {
+const ServerCard = ({ server, onPing }) => {
     const statusColors = {
         online: '#10B981',
         offline: '#EF4444',
@@ -236,11 +223,6 @@ const ServerCard = ({ server, onDelete, onPing }) => {
                 <div className="server-info">
                     <h3 className="server-name">{server.name}</h3>
                     <span className="server-hostname">{server.hostname || server.ip_address}</span>
-                </div>
-                <div className="server-actions-dropdown">
-                    <button className="btn-icon" title="Actions">
-                        <MoreIcon />
-                    </button>
                 </div>
             </div>
 
@@ -477,18 +459,23 @@ Install-ServerKitAgent -Server "${window.location.origin}" -Token "${registratio
                     <div className="install-instructions">
                         <div className="success-banner">
                             <CheckCircleIcon />
-                            <span>Server created! Install the agent to connect.</span>
+                            <div>
+                                <strong>Server registered successfully</strong>
+                                <p className="success-subtitle">Run the install script on your target machine to connect the agent.</p>
+                            </div>
                         </div>
 
                         <div className="install-tabs">
                             <InstallTab
                                 title="Linux / macOS"
+                                description="Ubuntu, Debian, CentOS, Fedora, Arch, macOS — requires curl and sudo"
                                 icon={<TerminalIcon />}
                                 script={linuxInstallScript}
                                 onCopy={() => copyToClipboard(linuxInstallScript)}
                             />
                             <InstallTab
                                 title="Windows (PowerShell)"
+                                description="Run as Administrator"
                                 icon={<WindowsIcon />}
                                 script={windowsInstallScript}
                                 onCopy={() => copyToClipboard(windowsInstallScript)}
@@ -498,18 +485,18 @@ Install-ServerKitAgent -Server "${window.location.origin}" -Token "${registratio
                         <div className="install-info">
                             <h4>What happens next?</h4>
                             <ol>
-                                <li>Run the install script on your server</li>
-                                <li>The agent will download and configure automatically</li>
-                                <li>Once connected, the server will appear as "Online"</li>
+                                <li>Copy and run the install script on your server</li>
+                                <li>The agent downloads, installs, and registers automatically</li>
+                                <li>Your server will appear as <strong>"Pending"</strong> until the agent connects, then switch to <strong>"Online"</strong></li>
                             </ol>
                             <p className="text-muted">
-                                The registration token expires in 24 hours. After that, you'll need to generate a new one.
+                                The registration token expires in 24 hours. You can regenerate it from the server details page.
                             </p>
                         </div>
 
                         <div className="modal-actions">
                             <button className="btn btn-primary" onClick={onCreated}>
-                                Done
+                                Close
                             </button>
                         </div>
                     </div>
@@ -519,12 +506,15 @@ Install-ServerKitAgent -Server "${window.location.origin}" -Token "${registratio
     );
 };
 
-const InstallTab = ({ title, icon, script, onCopy }) => {
+const InstallTab = ({ title, description, icon, script, onCopy }) => {
     return (
         <div className="install-tab">
             <div className="install-tab-header">
                 {icon}
-                <span>{title}</span>
+                <div className="install-tab-title">
+                    <span>{title}</span>
+                    {description && <span className="install-tab-description">{description}</span>}
+                </div>
                 <button className="btn btn-sm btn-secondary" onClick={onCopy}>
                     <CopyIcon /> Copy
                 </button>
@@ -552,7 +542,7 @@ const ManageGroupsModal = ({ groups, onClose, onUpdated }) => {
             toast.success('Group created');
             onUpdated();
             const data = await api.getServerGroups();
-            setGroupList(data.groups || []);
+            setGroupList(Array.isArray(data) ? data : []);
         } catch (err) {
             toast.error(err.message || 'Failed to create group');
         } finally {
@@ -567,7 +557,7 @@ const ManageGroupsModal = ({ groups, onClose, onUpdated }) => {
             setEditingGroup(null);
             onUpdated();
             const data = await api.getServerGroups();
-            setGroupList(data.groups || []);
+            setGroupList(Array.isArray(data) ? data : []);
         } catch (err) {
             toast.error(err.message || 'Failed to update group');
         }
@@ -581,7 +571,7 @@ const ManageGroupsModal = ({ groups, onClose, onUpdated }) => {
             toast.success('Group deleted');
             onUpdated();
             const data = await api.getServerGroups();
-            setGroupList(data.groups || []);
+            setGroupList(Array.isArray(data) ? data : []);
         } catch (err) {
             toast.error(err.message || 'Failed to delete group');
         }
@@ -712,14 +702,6 @@ const RefreshIcon = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <polyline points="23 4 23 10 17 10"/>
         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-    </svg>
-);
-
-const MoreIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="1"/>
-        <circle cx="19" cy="12" r="1"/>
-        <circle cx="5" cy="12" r="1"/>
     </svg>
 );
 

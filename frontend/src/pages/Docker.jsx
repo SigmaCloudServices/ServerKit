@@ -30,7 +30,7 @@ const Docker = () => {
     async function loadServers() {
         try {
             const data = await api.getAvailableServers();
-            setServers(data.servers || []);
+            setServers(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error('Failed to load servers:', err);
             // Default to just local

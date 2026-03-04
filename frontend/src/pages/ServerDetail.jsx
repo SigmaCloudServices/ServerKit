@@ -2,22 +2,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import MetricsGraph from '../components/MetricsGraph';
 
 const ServerDetail = () => {
-    const { id } = useParams();
+    const { id, tab } = useParams();
     const navigate = useNavigate();
     const [server, setServer] = useState(null);
     const [metrics, setMetrics] = useState(null);
     const [systemInfo, setSystemInfo] = useState(null);
-    const [activeTab, setActiveTab] = useState('overview');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [showTokenModal, setShowTokenModal] = useState(false);
     const toast = useToast();
+
+    const validTabs = ['overview', 'docker', 'metrics', 'settings'];
+    const activeTab = validTabs.includes(tab) ? tab : 'overview';
 
     const loadServer = useCallback(async () => {
         try {
             const data = await api.getServer(id);
-            setServer(data.server);
+            setServer(data);
             setError(null);
         } catch (err) {
             setError(err.message);
@@ -95,7 +99,25 @@ const ServerDetail = () => {
         try {
             const result = await api.generateRegistrationToken(id);
             toast.success('New registration token generated');
-            setServer(prev => ({ ...prev, registration_token: result.token }));
+            setServer(prev => ({
+                ...prev,
+                registration_token: result.registration_token,
+                registration_expires: result.registration_expires
+            }));
+        } catch (err) {
+            toast.error(err.message || 'Failed to generate token');
+        }
+    }
+
+    async function handleGenerateToken() {
+        try {
+            const result = await api.generateRegistrationToken(id);
+            setServer(prev => ({
+                ...prev,
+                registration_token: result.registration_token,
+                registration_expires: result.registration_expires
+            }));
+            setShowTokenModal(true);
         } catch (err) {
             toast.error(err.message || 'Failed to generate token');
         }
@@ -165,20 +187,20 @@ const ServerDetail = () => {
                     <button className="btn btn-secondary" onClick={handlePingServer}>
                         <RefreshIcon /> Ping
                     </button>
-                    <button className="btn btn-danger" onClick={handleDeleteServer}>
-                        <TrashIcon /> Remove
+                    <button className="btn btn-primary" onClick={handleGenerateToken}>
+                        <KeyIcon /> Generate Token
                     </button>
                 </div>
             </div>
 
             <div className="server-detail-tabs">
-                {tabs.map(tab => (
+                {tabs.map(t => (
                     <button
-                        key={tab.id}
-                        className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                        onClick={() => setActiveTab(tab.id)}
+                        key={t.id}
+                        className={`tab-btn ${activeTab === t.id ? 'active' : ''}`}
+                        onClick={() => navigate(t.id === 'overview' ? `/servers/${id}` : `/servers/${id}/${t.id}`, { replace: true })}
                     >
-                        {tab.label}
+                        {t.label}
                     </button>
                 ))}
             </div>
@@ -202,9 +224,17 @@ const ServerDetail = () => {
                         server={server}
                         onUpdate={loadServer}
                         onRegenerateToken={handleRegenerateToken}
+                        onDelete={handleDeleteServer}
                     />
                 )}
             </div>
+
+            {showTokenModal && server && (
+                <TokenModal
+                    server={server}
+                    onClose={() => setShowTokenModal(false)}
+                />
+            )}
         </div>
     );
 };
@@ -559,127 +589,131 @@ const DockerTab = ({ serverId, serverStatus }) => {
 };
 
 const MetricsTab = ({ serverId, metrics }) => {
-    if (!metrics) {
-        return (
-            <div className="offline-notice">
-                <OfflineIcon />
-                <h4>No Metrics Available</h4>
-                <p>Metrics are only available when the server is online.</p>
-            </div>
-        );
-    }
+    const formatBytes = (bytes) => {
+        if (!bytes) return 'N/A';
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+    };
 
     return (
         <div className="metrics-tab">
-            <div className="metrics-grid">
-                <div className="metric-card large">
-                    <h3>CPU Usage</h3>
-                    <div className="metric-gauge">
-                        <CircularGauge value={metrics.cpu_percent || 0} color="#6366F1" />
-                    </div>
-                    <div className="metric-details">
-                        <div className="detail-item">
-                            <span>Load Average</span>
-                            <span>{metrics.load_avg?.join(', ') || 'N/A'}</span>
-                        </div>
-                    </div>
-                </div>
+            <MetricsGraph serverId={serverId} />
 
-                <div className="metric-card large">
-                    <h3>Memory Usage</h3>
-                    <div className="metric-gauge">
-                        <CircularGauge value={metrics.memory_percent || 0} color="#10B981" />
-                    </div>
-                    <div className="metric-details">
-                        <div className="detail-item">
-                            <span>Used</span>
-                            <span>{formatBytes(metrics.memory_used)}</span>
-                        </div>
-                        <div className="detail-item">
-                            <span>Total</span>
-                            <span>{formatBytes(metrics.memory_total)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="metric-card large">
-                    <h3>Disk Usage</h3>
-                    <div className="metric-gauge">
-                        <CircularGauge value={metrics.disk_percent || 0} color="#F59E0B" />
-                    </div>
-                    <div className="metric-details">
-                        <div className="detail-item">
-                            <span>Used</span>
-                            <span>{formatBytes(metrics.disk_used)}</span>
-                        </div>
-                        <div className="detail-item">
-                            <span>Total</span>
-                            <span>{formatBytes(metrics.disk_total)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="metric-card">
-                    <h3>Network I/O</h3>
-                    <div className="network-stats">
-                        <div className="net-stat">
-                            <UploadIcon />
-                            <span>Upload</span>
-                            <span className="value">{formatBytes(metrics.network_sent)}/s</span>
-                        </div>
-                        <div className="net-stat">
-                            <DownloadIcon />
-                            <span>Download</span>
-                            <span className="value">{formatBytes(metrics.network_recv)}/s</span>
+            {metrics && (
+                <div className="metrics-live-stats">
+                    <div className="live-stat-card">
+                        <h4>Current Snapshot</h4>
+                        <div className="live-stats-grid">
+                            <div className="live-stat">
+                                <span className="live-stat-label">CPU</span>
+                                <span className="live-stat-value">{(metrics.cpu_percent || 0).toFixed(1)}%</span>
+                            </div>
+                            <div className="live-stat">
+                                <span className="live-stat-label">Memory</span>
+                                <span className="live-stat-value">{(metrics.memory_percent || 0).toFixed(1)}%</span>
+                            </div>
+                            <div className="live-stat">
+                                <span className="live-stat-label">Disk</span>
+                                <span className="live-stat-value">{(metrics.disk_percent || 0).toFixed(1)}%</span>
+                            </div>
+                            <div className="live-stat">
+                                <span className="live-stat-label">Net TX</span>
+                                <span className="live-stat-value">{formatBytes(metrics.network_sent)}/s</span>
+                            </div>
+                            <div className="live-stat">
+                                <span className="live-stat-label">Net RX</span>
+                                <span className="live-stat-value">{formatBytes(metrics.network_recv)}/s</span>
+                            </div>
+                            <div className="live-stat">
+                                <span className="live-stat-label">Containers</span>
+                                <span className="live-stat-value">{metrics.container_running || 0} / {metrics.container_count || 0}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-
-                <div className="metric-card">
-                    <h3>Docker</h3>
-                    <div className="docker-stats">
-                        <div className="docker-stat">
-                            <span>Containers</span>
-                            <span className="value">{metrics.container_count || 0}</span>
-                        </div>
-                        <div className="docker-stat">
-                            <span>Running</span>
-                            <span className="value">{metrics.container_running || 0}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            )}
         </div>
     );
 };
 
-const CircularGauge = ({ value, color }) => {
-    const safeValue = Math.min(Math.max(value || 0, 0), 100);
-    const circumference = 2 * Math.PI * 45;
-    const offset = circumference - (safeValue / 100) * circumference;
+
+const AgentRegistrationSection = ({ server, onRegenerateToken }) => {
+    const [copied, setCopied] = useState(false);
+    const toast = useToast();
+
+    const token = server.registration_token;
+    const expires = server.registration_expires;
+    const isExpired = expires && new Date(expires) < new Date();
+
+    const linuxScript = token ? `curl -fsSL ${window.location.origin}/api/v1/servers/install.sh | sudo bash -s -- \\
+  --server "${window.location.origin}" \\
+  --token "${token}"` : '';
+
+    const windowsScript = token ? `irm ${window.location.origin}/api/v1/servers/install.ps1 | iex
+Install-ServerKitAgent -Server "${window.location.origin}" -Token "${token}"` : '';
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        toast.success('Copied to clipboard');
+        setTimeout(() => setCopied(false), 2000);
+    }
 
     return (
-        <svg className="circular-gauge" viewBox="0 0 100 100">
-            <circle className="gauge-bg" cx="50" cy="50" r="45" />
-            <circle
-                className="gauge-fill"
-                cx="50"
-                cy="50"
-                r="45"
-                style={{
-                    strokeDasharray: circumference,
-                    strokeDashoffset: offset,
-                    stroke: safeValue > 80 ? '#EF4444' : color
-                }}
-            />
-            <text x="50" y="50" className="gauge-text">
-                {safeValue.toFixed(0)}%
-            </text>
-        </svg>
+        <div className="form-section">
+            <h3>Agent Installation</h3>
+
+            {token && !isExpired ? (
+                <div className="install-active">
+                    <div className="token-status">
+                        <span className="token-status-dot active" />
+                        <span>Token active — expires {new Date(expires).toLocaleString()}</span>
+                    </div>
+
+                    <div className="install-script-block">
+                        <div className="install-script-header">
+                            <TerminalIcon />
+                            <span>Linux / macOS</span>
+                            <button className="btn btn-sm btn-secondary" onClick={() => copyToClipboard(linuxScript)}>
+                                <CopyIcon /> Copy
+                            </button>
+                        </div>
+                        <pre className="install-script-code">{linuxScript}</pre>
+                    </div>
+
+                    <div className="install-script-block">
+                        <div className="install-script-header">
+                            <WindowsIcon />
+                            <span>Windows (PowerShell)</span>
+                            <button className="btn btn-sm btn-secondary" onClick={() => copyToClipboard(windowsScript)}>
+                                <CopyIcon /> Copy
+                            </button>
+                        </div>
+                        <pre className="install-script-code">{windowsScript}</pre>
+                    </div>
+
+                    <button className="btn btn-secondary" onClick={onRegenerateToken}>
+                        <RefreshIcon /> Regenerate Token
+                    </button>
+                </div>
+            ) : (
+                <div className="install-inactive">
+                    <p className="section-description">
+                        {isExpired
+                            ? 'The registration token has expired. Generate a new one to install or reinstall the agent.'
+                            : 'Generate a registration token to install the agent on your server.'}
+                    </p>
+                    <button className="btn btn-primary" onClick={onRegenerateToken}>
+                        <KeyIcon /> Generate Token
+                    </button>
+                </div>
+            )}
+        </div>
     );
 };
 
-const SettingsTab = ({ server, onUpdate, onRegenerateToken }) => {
+const SettingsTab = ({ server, onUpdate, onRegenerateToken, onDelete }) => {
     const [formData, setFormData] = useState({
         name: server.name || '',
         description: server.description || '',
@@ -704,7 +738,7 @@ const SettingsTab = ({ server, onUpdate, onRegenerateToken }) => {
     async function loadGroups() {
         try {
             const data = await api.getServerGroups();
-            setGroups(data.groups || []);
+            setGroups(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error('Failed to load groups:', err);
         }
@@ -808,215 +842,216 @@ const SettingsTab = ({ server, onUpdate, onRegenerateToken }) => {
 
     return (
         <div className="settings-tab">
-            <form onSubmit={handleSubmit} className="settings-form">
-                <div className="form-section">
-                    <h3>Basic Information</h3>
+            <div className="settings-grid">
+                <form onSubmit={handleSubmit} className="settings-form">
+                    <div className="form-section">
+                        <h3>Basic Information</h3>
 
-                    <div className="form-group">
-                        <label>Server Name</label>
-                        <input
-                            type="text"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleChange}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Description</label>
-                        <textarea
-                            name="description"
-                            value={formData.description}
-                            onChange={handleChange}
-                            rows={3}
-                        />
-                    </div>
-
-                    <div className="form-row">
                         <div className="form-group">
-                            <label>Hostname</label>
+                            <label>Server Name</label>
                             <input
                                 type="text"
-                                name="hostname"
-                                value={formData.hostname}
+                                name="name"
+                                value={formData.name}
                                 onChange={handleChange}
+                                required
                             />
                         </div>
+
                         <div className="form-group">
-                            <label>IP Address</label>
-                            <input
-                                type="text"
-                                name="ip_address"
-                                value={formData.ip_address}
+                            <label>Description</label>
+                            <textarea
+                                name="description"
+                                value={formData.description}
                                 onChange={handleChange}
+                                rows={3}
                             />
                         </div>
+
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>Hostname</label>
+                                <input
+                                    type="text"
+                                    name="hostname"
+                                    value={formData.hostname}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>IP Address</label>
+                                <input
+                                    type="text"
+                                    name="ip_address"
+                                    value={formData.ip_address}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label>Group</label>
+                            <select name="group_id" value={formData.group_id} onChange={handleChange}>
+                                <option value="">No Group</option>
+                                {groups.map(group => (
+                                    <option key={group.id} value={group.id}>{group.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <button type="submit" className="btn btn-primary" disabled={loading}>
+                            {loading ? 'Saving...' : 'Save Changes'}
+                        </button>
                     </div>
+                </form>
 
-                    <div className="form-group">
-                        <label>Group</label>
-                        <select name="group_id" value={formData.group_id} onChange={handleChange}>
-                            <option value="">No Group</option>
-                            {groups.map(group => (
-                                <option key={group.id} value={group.id}>{group.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <button type="submit" className="btn btn-primary" disabled={loading}>
-                        {loading ? 'Saving...' : 'Save Changes'}
-                    </button>
-                </div>
-            </form>
-
-            <div className="form-section">
-                <h3>Agent Registration</h3>
-                <p className="section-description">
-                    If you need to reinstall the agent or connect from a different machine,
-                    generate a new registration token.
-                </p>
-                <button className="btn btn-secondary" onClick={onRegenerateToken}>
-                    <RefreshIcon /> Generate New Token
-                </button>
+                <AgentRegistrationSection
+                    server={server}
+                    onRegenerateToken={onRegenerateToken}
+                />
             </div>
 
-            <div className="form-section">
-                <h3>Security</h3>
+            <div className="security-grid">
+                <div className="form-section">
+                    <h3>Connection & IP Allowlist</h3>
 
-                {/* Connection Info */}
-                {connectionInfo && (
-                    <div className="security-info">
-                        <div className="info-item">
-                            <span className="label">Current Connection IP:</span>
-                            <span className="value">{connectionInfo.ip_address || 'Not connected'}</span>
+                    {connectionInfo && (
+                        <div className="security-info-bar">
+                            <div className="security-info-item">
+                                <span className="security-info-label">Connection IP</span>
+                                <span className="security-info-value">
+                                    <code>{connectionInfo.ip_address || 'Not connected'}</code>
+                                </span>
+                            </div>
+                            {connectionInfo.connected_since && (
+                                <div className="security-info-item">
+                                    <span className="security-info-label">Connected Since</span>
+                                    <span className="security-info-value">{new Date(connectionInfo.connected_since).toLocaleString()}</span>
+                                </div>
+                            )}
                         </div>
-                        {connectionInfo.connected_since && (
-                            <div className="info-item">
-                                <span className="label">Connected Since:</span>
-                                <span className="value">{new Date(connectionInfo.connected_since).toLocaleString()}</span>
+                    )}
+
+                    <div className="subsection">
+                        <p className="section-description">
+                            Restrict which IPs can connect. Supports single IPs, CIDR notation, and wildcards.
+                        </p>
+
+                        <div className="ip-list">
+                            {allowedIPs.length === 0 ? (
+                                <div className="ip-empty">No IP restrictions (all IPs allowed)</div>
+                            ) : (
+                                allowedIPs.map((ip, idx) => (
+                                    <div key={idx} className="ip-item">
+                                        <code>{ip}</code>
+                                        {connectionInfo?.ip_address === ip && (
+                                            <span className="badge badge-success">Current</span>
+                                        )}
+                                        <button
+                                            className="btn-icon danger"
+                                            onClick={() => handleRemoveIP(ip)}
+                                            title="Remove"
+                                        >
+                                            <TrashIcon />
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="ip-add-form">
+                            <input
+                                type="text"
+                                placeholder="IP address or CIDR (e.g., 192.168.1.0/24)"
+                                value={newIP}
+                                onChange={(e) => setNewIP(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddIP())}
+                            />
+                            <button className="btn btn-secondary" onClick={handleAddIP}>
+                                Add
+                            </button>
+                        </div>
+
+                        {connectionInfo?.ip_address && allowedIPs.length > 0 && !allowedIPs.some(ip => {
+                            return ip === connectionInfo.ip_address || ip.includes('*') || ip.includes('/');
+                        }) && (
+                            <div className="security-warning">
+                                Current connection IP ({connectionInfo.ip_address}) may be blocked by these rules.
                             </div>
                         )}
                     </div>
-                )}
-
-                {/* IP Allowlist */}
-                <div className="subsection">
-                    <h4>IP Allowlist</h4>
-                    <p className="section-description">
-                        Restrict which IP addresses can connect to this server. Leave empty to allow all IPs.
-                        Supports single IPs, CIDR notation (192.168.1.0/24), and wildcards (192.168.1.*).
-                    </p>
-
-                    <div className="ip-list">
-                        {allowedIPs.length === 0 ? (
-                            <p className="empty-state">No IP restrictions (all IPs allowed)</p>
-                        ) : (
-                            allowedIPs.map((ip, idx) => (
-                                <div key={idx} className="ip-item">
-                                    <code>{ip}</code>
-                                    {connectionInfo?.ip_address === ip && (
-                                        <span className="badge badge-success">Current</span>
-                                    )}
-                                    <button
-                                        className="btn btn-icon btn-danger-subtle"
-                                        onClick={() => handleRemoveIP(ip)}
-                                        title="Remove"
-                                    >
-                                        <TrashIcon />
-                                    </button>
-                                </div>
-                            ))
-                        )}
-                    </div>
-
-                    <div className="ip-add-form">
-                        <input
-                            type="text"
-                            placeholder="Add IP address or CIDR (e.g., 192.168.1.0/24)"
-                            value={newIP}
-                            onChange={(e) => setNewIP(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddIP())}
-                        />
-                        <button className="btn btn-secondary" onClick={handleAddIP}>
-                            Add IP
-                        </button>
-                    </div>
-
-                    {connectionInfo?.ip_address && allowedIPs.length > 0 && !allowedIPs.some(ip => {
-                        // Simple check - full validation is server-side
-                        return ip === connectionInfo.ip_address || ip.includes('*') || ip.includes('/');
-                    }) && (
-                        <p className="warning">
-                            Warning: Current connection IP ({connectionInfo.ip_address}) may be blocked!
-                        </p>
-                    )}
                 </div>
 
-                {/* API Key Rotation */}
-                <div className="subsection">
-                    <h4>API Key Rotation</h4>
+                <div className="form-section">
+                    <h3>API Key Rotation</h3>
                     <p className="section-description">
                         Rotate the API credentials used by the agent. The agent must be online to receive new credentials.
                     </p>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={handleRotateKey}
-                        disabled={rotatingKey || server.status !== 'online'}
-                    >
-                        <KeyIcon /> {rotatingKey ? 'Rotating...' : 'Rotate API Key'}
-                    </button>
-                    {server.api_key_last_rotated && (
-                        <p className="hint">Last rotated: {new Date(server.api_key_last_rotated).toLocaleString()}</p>
+                    <div className="key-rotation-actions">
+                        <button
+                            className="btn btn-secondary"
+                            onClick={handleRotateKey}
+                            disabled={rotatingKey || server.status !== 'online'}
+                        >
+                            <KeyIcon /> {rotatingKey ? 'Rotating...' : 'Rotate API Key'}
+                        </button>
+                        {server.api_key_last_rotated && (
+                            <span className="key-rotation-hint">Last rotated: {new Date(server.api_key_last_rotated).toLocaleString()}</span>
+                        )}
+                    </div>
+
+                    {server.status !== 'online' && (
+                        <div className="security-notice">
+                            Server must be online to rotate credentials.
+                        </div>
                     )}
                 </div>
-
-                {/* Security Alerts */}
-                {securityAlerts.length > 0 && (
-                    <div className="subsection">
-                        <h4>Security Alerts</h4>
-                        <div className="alerts-list">
-                            {securityAlerts.map(alert => (
-                                <div key={alert.id} className={`alert-item severity-${alert.severity}`}>
-                                    <div className="alert-header">
-                                        <span className={`severity-badge ${alert.severity}`}>{alert.severity}</span>
-                                        <span className="alert-type">{alert.alert_type.replace('_', ' ')}</span>
-                                        <span className="alert-time">{new Date(alert.created_at).toLocaleString()}</span>
-                                    </div>
-                                    <div className="alert-details">
-                                        {alert.source_ip && <span>IP: {alert.source_ip}</span>}
-                                        {alert.details?.message && <span>{alert.details.message}</span>}
-                                        {alert.details?.attempts && <span>Attempts: {alert.details.attempts}</span>}
-                                    </div>
-                                    <div className="alert-actions">
-                                        {alert.status === 'open' && (
-                                            <button
-                                                className="btn btn-sm btn-secondary"
-                                                onClick={() => handleAcknowledgeAlert(alert.id)}
-                                            >
-                                                Acknowledge
-                                            </button>
-                                        )}
-                                        <button
-                                            className="btn btn-sm btn-success"
-                                            onClick={() => handleResolveAlert(alert.id)}
-                                        >
-                                            Resolve
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </div>
+
+            {securityAlerts.length > 0 && (
+                <div className="form-section">
+                    <h3>Security Alerts</h3>
+                    <div className="alerts-list">
+                        {securityAlerts.map(alert => (
+                            <div key={alert.id} className={`alert-item severity-${alert.severity}`}>
+                                <div className="alert-item-header">
+                                    <span className={`severity-badge ${alert.severity}`}>{alert.severity}</span>
+                                    <span className="alert-type">{alert.alert_type.replace('_', ' ')}</span>
+                                    <span className="alert-time">{new Date(alert.created_at).toLocaleString()}</span>
+                                </div>
+                                <div className="alert-item-details">
+                                    {alert.source_ip && <span>IP: {alert.source_ip}</span>}
+                                    {alert.details?.message && <span>{alert.details.message}</span>}
+                                    {alert.details?.attempts && <span>Attempts: {alert.details.attempts}</span>}
+                                </div>
+                                <div className="alert-item-actions">
+                                    {alert.status === 'open' && (
+                                        <button
+                                            className="btn btn-sm btn-secondary"
+                                            onClick={() => handleAcknowledgeAlert(alert.id)}
+                                        >
+                                            Acknowledge
+                                        </button>
+                                    )}
+                                    <button
+                                        className="btn btn-sm btn-success"
+                                        onClick={() => handleResolveAlert(alert.id)}
+                                    >
+                                        Resolve
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="form-section danger-zone">
                 <h3>Danger Zone</h3>
                 <p className="section-description">
                     Removing this server will disconnect the agent and delete all associated data.
                 </p>
-                <button className="btn btn-danger">
+                <button className="btn btn-danger" onClick={onDelete}>
                     <TrashIcon /> Remove Server
                 </button>
             </div>
@@ -1024,13 +1059,87 @@ const SettingsTab = ({ server, onUpdate, onRegenerateToken }) => {
     );
 };
 
-// Helper function
-function formatBytes(bytes) {
-    if (!bytes) return 'N/A';
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
-}
+
+const TokenModal = ({ server, onClose }) => {
+    const toast = useToast();
+    const token = server.registration_token;
+    const expires = server.registration_expires;
+
+    const linuxScript = token ? `curl -fsSL ${window.location.origin}/api/v1/servers/install.sh | sudo bash -s -- \\
+  --server "${window.location.origin}" \\
+  --token "${token}"` : '';
+
+    const windowsScript = token ? `irm ${window.location.origin}/api/v1/servers/install.ps1 | iex
+Install-ServerKitAgent -Server "${window.location.origin}" -Token "${token}"` : '';
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text);
+        toast.success('Copied to clipboard');
+    }
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h2>Agent Installation Token</h2>
+                    <button className="modal-close" onClick={onClose}>&times;</button>
+                </div>
+                <div className="install-instructions">
+                    <div className="token-status">
+                        <span className="token-status-dot active" />
+                        <span>Token active — expires {new Date(expires).toLocaleString()}</span>
+                    </div>
+
+                    <div className="install-tabs">
+                        <div className="install-tab">
+                            <div className="install-tab-header">
+                                <TerminalIcon />
+                                <div className="install-tab-title">
+                                    <span>Linux / macOS</span>
+                                    <span className="install-tab-description">Ubuntu, Debian, CentOS, Fedora, Arch, macOS — requires curl and sudo</span>
+                                </div>
+                                <button className="btn btn-sm btn-secondary" onClick={() => copyToClipboard(linuxScript)}>
+                                    <CopyIcon /> Copy
+                                </button>
+                            </div>
+                            <pre className="install-script">{linuxScript}</pre>
+                        </div>
+
+                        <div className="install-tab">
+                            <div className="install-tab-header">
+                                <WindowsIcon />
+                                <div className="install-tab-title">
+                                    <span>Windows (PowerShell)</span>
+                                    <span className="install-tab-description">Run as Administrator</span>
+                                </div>
+                                <button className="btn btn-sm btn-secondary" onClick={() => copyToClipboard(windowsScript)}>
+                                    <CopyIcon /> Copy
+                                </button>
+                            </div>
+                            <pre className="install-script">{windowsScript}</pre>
+                        </div>
+                    </div>
+
+                    <div className="install-info">
+                        <h4>What happens next?</h4>
+                        <ol>
+                            <li>Copy and run the install script on your server</li>
+                            <li>The agent downloads, installs, and registers automatically</li>
+                            <li>Your server will appear as <strong>"Pending"</strong> until the agent connects, then switch to <strong>"Online"</strong></li>
+                        </ol>
+                        <p className="text-muted">
+                            The registration token expires in 24 hours. You can regenerate it from the server settings page.
+                        </p>
+                    </div>
+
+                    <div className="modal-actions">
+                        <button className="btn btn-primary" onClick={onClose}>Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Icons
 const RefreshIcon = () => (
@@ -1077,17 +1186,23 @@ const PlayIcon = () => (
     </svg>
 );
 
-const UploadIcon = () => (
+const TerminalIcon = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polyline points="17 11 12 6 7 11"/>
-        <line x1="12" y1="6" x2="12" y2="18"/>
+        <polyline points="4 17 10 11 4 5"/>
+        <line x1="12" y1="19" x2="20" y2="19"/>
     </svg>
 );
 
-const DownloadIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polyline points="7 13 12 18 17 13"/>
-        <line x1="12" y1="18" x2="12" y2="6"/>
+const CopyIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </svg>
+);
+
+const WindowsIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
     </svg>
 );
 

@@ -173,7 +173,7 @@ function AppRoutes() {
                 <Route path="docker" element={<Docker />} />
                 <Route path="servers" element={<Servers />} />
                 <Route path="servers/:id" element={<ServerDetail />} />
-                <Route path="servers/:id/docker" element={<ServerDetail />} />
+                <Route path="servers/:id/:tab" element={<ServerDetail />} />
                 <Route path="downloads" element={<Downloads />} />
                 <Route path="firewall" element={<Navigate to="/security" replace />} />
                 <Route path="git" element={<Git />} />

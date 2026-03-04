@@ -2600,7 +2600,7 @@ class ApiService {
 
     // Server Registration
     async generateRegistrationToken(serverId) {
-        return this.request(`/servers/${serverId}/registration-token`, {
+        return this.request(`/servers/${serverId}/regenerate-token`, {
             method: 'POST'
         });
     }
