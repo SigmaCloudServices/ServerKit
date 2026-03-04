@@ -21,9 +21,26 @@ def get_setup_status():
     needs_setup = SettingsService.needs_setup()
     registration_enabled = SettingsService.is_registration_enabled()
 
+    # SSO info for login page
+    from app.services import sso_service
+    sso_providers = sso_service.get_enabled_providers()
+    password_login_enabled = sso_service.is_password_login_allowed()
+
+    # Migration status
+    from app.services.migration_service import MigrationService
+    migration_status = MigrationService.get_status()
+
     return jsonify({
         'needs_setup': needs_setup,
-        'registration_enabled': registration_enabled
+        'registration_enabled': registration_enabled,
+        'sso_providers': sso_providers,
+        'password_login_enabled': password_login_enabled,
+        'needs_migration': migration_status['needs_migration'],
+        'migration_info': {
+            'pending_count': migration_status['pending_count'],
+            'current_revision': migration_status['current_revision'],
+            'head_revision': migration_status['head_revision'],
+        },
     }), 200
 
 
@@ -123,6 +140,11 @@ def complete_onboarding():
 @auth_bp.route('/login', methods=['POST'])
 @limiter.limit("5 per minute")
 def login():
+    # Check if password login is disabled (SSO-only mode)
+    from app.services import sso_service
+    if not sso_service.is_password_login_allowed():
+        return jsonify({'error': 'Password login is disabled. Please use SSO.'}), 403
+
     data = request.get_json()
 
     if not data:

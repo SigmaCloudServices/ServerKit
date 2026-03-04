@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Check, ArrowLeft } from 'lucide-react';
-import ServerKitLogo from '../assets/ServerKitLogo.svg';
+import ServerKitLogo from '../components/ServerKitLogo';
 import SetupStepAccount from '../components/setup/SetupStepAccount';
 import SetupStepIntent from '../components/setup/SetupStepIntent';
 import SetupStepTier from '../components/setup/SetupStepTier';
@@ -116,13 +116,7 @@ const Setup = () => {
         <div className="setup-wizard">
             <div className="wizard-card">
                 <div className="wizard-header">
-                    <img
-                        className="wizard-logo"
-                        src={ServerKitLogo}
-                        alt="ServerKit"
-                        width="48"
-                        height="48"
-                    />
+                    <ServerKitLogo className="wizard-logo" width={48} height={48} />
                     <h1>Welcome to ServerKit</h1>
                     <p>Let's get your server ready</p>
                 </div>

@@ -9,6 +9,10 @@ export function AuthProvider({ children }) {
     const [setupStatus, setSetupStatus] = useState({
         needsSetup: false,
         registrationEnabled: false,
+        ssoProviders: [],
+        passwordLoginEnabled: true,
+        needsMigration: false,
+        migrationInfo: null,
         checked: false
     });
 
@@ -22,6 +26,10 @@ export function AuthProvider({ children }) {
             setSetupStatus({
                 needsSetup: status.needs_setup,
                 registrationEnabled: status.registration_enabled,
+                ssoProviders: status.sso_providers || [],
+                passwordLoginEnabled: status.password_login_enabled !== false,
+                needsMigration: status.needs_migration || false,
+                migrationInfo: status.migration_info || null,
                 checked: true
             });
 
@@ -54,6 +62,10 @@ export function AuthProvider({ children }) {
             setSetupStatus({
                 needsSetup: status.needs_setup,
                 registrationEnabled: status.registration_enabled,
+                ssoProviders: status.sso_providers || [],
+                passwordLoginEnabled: status.password_login_enabled !== false,
+                needsMigration: status.needs_migration || false,
+                migrationInfo: status.migration_info || null,
                 checked: true
             });
         } catch (error) {
@@ -75,11 +87,12 @@ export function AuthProvider({ children }) {
 
     async function completeOnboarding(useCases) {
         await api.completeOnboarding(useCases);
-        setSetupStatus({
+        setSetupStatus(prev => ({
+            ...prev,
             needsSetup: false,
             registrationEnabled: false,
             checked: true
-        });
+        }));
     }
 
     function logout() {
@@ -116,7 +129,11 @@ export function AuthProvider({ children }) {
         isViewer: !!user?.role,
         setupStatus,
         needsSetup: setupStatus.needsSetup,
+        needsMigration: setupStatus.needsMigration,
+        migrationInfo: setupStatus.migrationInfo,
         registrationEnabled: setupStatus.registrationEnabled,
+        ssoProviders: setupStatus.ssoProviders,
+        passwordLoginEnabled: setupStatus.passwordLoginEnabled,
     };
 
     return (

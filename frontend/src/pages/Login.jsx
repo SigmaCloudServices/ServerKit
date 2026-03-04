@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import ServerKitLogo from '../assets/ServerKitLogo.svg';
+import SSOProviderIcon from '../components/SSOProviderIcon';
+import ServerKitLogo from '../components/ServerKitLogo';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -17,11 +18,34 @@ const Login = () => {
     const [useBackupCode, setUseBackupCode] = useState(false);
     const [backupCode, setBackupCode] = useState('');
 
-    const { login, setUser, setTokens, registrationEnabled } = useAuth();
+    const { login, setUser, setTokens, registrationEnabled, ssoProviders, passwordLoginEnabled } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const [ssoLoading, setSsoLoading] = useState(null);
 
     // Refs for TOTP input fields
     const inputRefs = useRef([]);
+
+    // Handle incoming 2FA state from SSO callback
+    useEffect(() => {
+        if (location.state?.requires2FA) {
+            setRequires2FA(true);
+            setTempToken(location.state.tempToken);
+        }
+    }, [location.state]);
+
+    async function handleSSOLogin(provider) {
+        setSsoLoading(provider);
+        setError('');
+        try {
+            const redirectUri = `${window.location.origin}/login/callback/${provider}`;
+            const { auth_url } = await api.startSSOAuth(provider, redirectUri);
+            window.location.href = auth_url;
+        } catch (err) {
+            setError(err.message || `Failed to start ${provider} login`);
+            setSsoLoading(null);
+        }
+    }
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -223,7 +247,7 @@ const Login = () => {
             <div className="auth-card">
                 <div className="auth-header">
                     <div className="brand-logo">
-                        <img src={ServerKitLogo} alt="ServerKit" width="40" height="40" />
+                        <ServerKitLogo width={40} height={40} />
                     </div>
                     <h1>ServerKit</h1>
                     <p>Sign in to your account</p>
@@ -231,40 +255,64 @@ const Login = () => {
 
                 {error && <div className="error-message">{error}</div>}
 
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label htmlFor="email">Username or Email</label>
-                        <input
-                            type="text"
-                            id="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="admin or you@example.com"
-                            required
-                            autoComplete="username"
-                        />
+                {ssoProviders && ssoProviders.length > 0 && (
+                    <div className="sso-providers">
+                        {ssoProviders.map(p => (
+                            <button
+                                key={p.id}
+                                className={`btn-sso btn-sso--${p.id}`}
+                                onClick={() => handleSSOLogin(p.id)}
+                                disabled={ssoLoading !== null}
+                            >
+                                <SSOProviderIcon provider={p.id} />
+                                {ssoLoading === p.id ? 'Redirecting...' : `Continue with ${p.name}`}
+                            </button>
+                        ))}
                     </div>
+                )}
 
-                    <div className="form-group">
-                        <label htmlFor="password">Password</label>
-                        <input
-                            type="password"
-                            id="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Enter your password"
-                            required
-                        />
+                {ssoProviders && ssoProviders.length > 0 && passwordLoginEnabled && (
+                    <div className="sso-divider">
+                        <span>or</span>
                     </div>
+                )}
 
-                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                        {loading ? 'Signing in...' : 'Sign In'}
-                    </button>
-                </form>
+                {passwordLoginEnabled && (
+                    <form onSubmit={handleSubmit}>
+                        <div className="form-group">
+                            <label htmlFor="email">Username or Email</label>
+                            <input
+                                type="text"
+                                id="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="admin or you@example.com"
+                                required
+                                autoComplete="username"
+                            />
+                        </div>
 
-                {registrationEnabled && (
+                        <div className="form-group">
+                            <label htmlFor="password">Password</label>
+                            <input
+                                type="password"
+                                id="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Enter your password"
+                                required
+                            />
+                        </div>
+
+                        <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                            {loading ? 'Signing in...' : 'Sign In'}
+                        </button>
+                    </form>
+                )}
+
+                {registrationEnabled && passwordLoginEnabled && (
                     <p className="auth-footer">
-                        Don't have an account? <Link to="/register">Create one</Link>
+                        Don&apos;t have an account? <Link to="/register">Create one</Link>
                     </p>
                 )}
             </div>

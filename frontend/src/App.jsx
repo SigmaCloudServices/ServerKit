@@ -36,6 +36,8 @@ import WordPressProjects from './pages/WordPressProjects';
 import WordPressProject from './pages/WordPressProject';
 import SSLCertificates from './pages/SSLCertificates';
 import Email from './pages/Email';
+import SSOCallback from './pages/SSOCallback';
+import DatabaseMigration from './pages/DatabaseMigration';
 
 // Page title mapping
 const PAGE_TITLES = {
@@ -64,6 +66,7 @@ const PAGE_TITLES = {
     '/email': 'Email Server',
     '/terminal': 'Terminal',
     '/settings': 'Settings',
+    '/migrate': 'Database Migration',
 };
 
 function PageTitleUpdater() {
@@ -93,13 +96,17 @@ function PageTitleUpdater() {
 }
 
 function PrivateRoute({ children }) {
-    const { isAuthenticated, loading, needsSetup } = useAuth();
+    const { isAuthenticated, loading, needsSetup, needsMigration } = useAuth();
 
     if (loading) {
         return <div className="loading">Loading...</div>;
     }
 
-    // If setup is needed, redirect to setup
+    // Priority: migrations > setup > auth
+    if (needsMigration) {
+        return <Navigate to="/migrate" />;
+    }
+
     if (needsSetup) {
         return <Navigate to="/setup" />;
     }
@@ -108,13 +115,17 @@ function PrivateRoute({ children }) {
 }
 
 function PublicRoute({ children }) {
-    const { isAuthenticated, loading, needsSetup } = useAuth();
+    const { isAuthenticated, loading, needsSetup, needsMigration } = useAuth();
 
     if (loading) {
         return <div className="loading">Loading...</div>;
     }
 
-    // If setup is needed, redirect to setup
+    // Priority: migrations > setup > auth
+    if (needsMigration) {
+        return <Navigate to="/migrate" />;
+    }
+
     if (needsSetup) {
         return <Navigate to="/setup" />;
     }
@@ -142,6 +153,7 @@ function AppRoutes() {
 
     return (
         <Routes>
+            <Route path="/migrate" element={<DatabaseMigration />} />
             <Route path="/setup" element={
                 <SetupRoute>
                     <Setup />
@@ -150,6 +162,11 @@ function AppRoutes() {
             <Route path="/login" element={
                 <PublicRoute>
                     <Login />
+                </PublicRoute>
+            } />
+            <Route path="/login/callback/:provider" element={
+                <PublicRoute>
+                    <SSOCallback />
                 </PublicRoute>
             } />
             {registrationEnabled && (

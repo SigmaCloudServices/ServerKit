@@ -5,11 +5,13 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_migrate import Migrate
 
 from config import config
 
 db = SQLAlchemy()
 jwt = JWTManager()
+migrate = Migrate()
 limiter = Limiter(key_func=get_remote_address, default_limits=["100 per minute"])
 socketio = None
 
@@ -33,6 +35,7 @@ def create_app(config_name=None):
 
     # Initialize extensions
     db.init_app(app)
+    migrate.init_app(app, db)
     jwt.init_app(app)
     limiter.init_app(app)
     CORS(
@@ -167,6 +170,14 @@ def create_app(config_name=None):
     from app.api.two_factor import two_factor_bp
     app.register_blueprint(two_factor_bp, url_prefix='/api/v1/auth/2fa')
 
+    # Register blueprints - SSO / OAuth
+    from app.api.sso import sso_bp
+    app.register_blueprint(sso_bp, url_prefix='/api/v1/sso')
+
+    # Register blueprints - Database Migrations
+    from app.api.migrations import migrations_bp
+    app.register_blueprint(migrations_bp, url_prefix='/api/v1/migrations')
+
     # Register blueprints - Admin (User Management, Settings, Audit Logs)
     from app.api.admin import admin_bp
     app.register_blueprint(admin_bp, url_prefix='/api/v1/admin')
@@ -183,12 +194,10 @@ def create_app(config_name=None):
     from app.api.servers import servers_bp
     app.register_blueprint(servers_bp, url_prefix='/api/v1/servers')
 
-    # Create database tables
+    # Handle database migrations (Alembic)
     with app.app_context():
-        db.create_all()
-
-        # Auto-migrate missing columns on existing tables
-        _auto_migrate_columns(app)
+        from app.services.migration_service import MigrationService
+        MigrationService.check_and_prepare(app)
 
         # Initialize default settings and migrate legacy roles
         from app.services.settings_service import SettingsService
@@ -229,72 +238,6 @@ def create_app(config_name=None):
 def get_socketio():
     """Get the SocketIO instance."""
     return socketio
-
-
-def _auto_migrate_columns(app):
-    """Add missing columns to existing tables (lightweight auto-migration)."""
-    import logging
-    from sqlalchemy import text, inspect as sa_inspect
-
-    logger = logging.getLogger(__name__)
-
-    # Define expected columns per table: (table, column, sql_type)
-    expected_columns = [
-        # wordpress_sites table
-        ('wordpress_sites', 'environment_type', "VARCHAR(20) DEFAULT 'standalone'"),
-        ('wordpress_sites', 'multidev_branch', 'VARCHAR(200)'),
-        ('wordpress_sites', 'is_locked', 'BOOLEAN DEFAULT 0'),
-        ('wordpress_sites', 'locked_by', 'VARCHAR(100)'),
-        ('wordpress_sites', 'locked_reason', 'VARCHAR(200)'),
-        ('wordpress_sites', 'lock_expires_at', 'DATETIME'),
-        ('wordpress_sites', 'compose_project_name', 'VARCHAR(100)'),
-        ('wordpress_sites', 'container_prefix', 'VARCHAR(100)'),
-        ('wordpress_sites', 'resource_limits', 'TEXT'),
-        ('wordpress_sites', 'basic_auth_enabled', 'BOOLEAN DEFAULT 0'),
-        ('wordpress_sites', 'basic_auth_user', 'VARCHAR(100)'),
-        ('wordpress_sites', 'basic_auth_password_hash', 'VARCHAR(200)'),
-        ('wordpress_sites', 'health_status', "VARCHAR(20) DEFAULT 'unknown'"),
-        ('wordpress_sites', 'last_health_check', 'DATETIME'),
-        ('wordpress_sites', 'disk_usage_bytes', 'BIGINT DEFAULT 0'),
-        ('wordpress_sites', 'disk_usage_updated_at', 'DATETIME'),
-        ('wordpress_sites', 'auto_sync_schedule', 'VARCHAR(100)'),
-        ('wordpress_sites', 'auto_sync_enabled', 'BOOLEAN DEFAULT 0'),
-        # applications table
-        ('applications', 'private_slug', 'VARCHAR(50)'),
-        ('applications', 'private_url_enabled', 'BOOLEAN DEFAULT 0'),
-        ('applications', 'environment_type', "VARCHAR(20) DEFAULT 'standalone'"),
-        ('applications', 'linked_app_id', 'INTEGER'),
-        ('applications', 'shared_config', 'TEXT'),
-    ]
-
-    try:
-        inspector = sa_inspect(db.engine)
-        existing_tables = inspector.get_table_names()
-
-        # Group by table for efficient inspection
-        tables_checked = {}
-        applied = 0
-
-        for table, column, col_type in expected_columns:
-            if table not in existing_tables:
-                continue
-
-            if table not in tables_checked:
-                tables_checked[table] = [col['name'] for col in inspector.get_columns(table)]
-
-            if column not in tables_checked[table]:
-                try:
-                    db.session.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {col_type}'))
-                    applied += 1
-                    logger.info(f'Auto-migrated: added {table}.{column}')
-                except Exception as e:
-                    logger.warning(f'Auto-migrate failed for {table}.{column}: {e}')
-
-        if applied > 0:
-            db.session.commit()
-            logger.info(f'Auto-migration: applied {applied} column(s)')
-    except Exception as e:
-        logger.warning(f'Auto-migration check failed: {e}')
 
 
 _auto_sync_thread = None

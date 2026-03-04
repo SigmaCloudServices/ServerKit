@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import ServerKitLogo from '../assets/ServerKitLogo.svg';
+import ServerKitLogo from '../components/ServerKitLogo';
 
 const Register = () => {
     const [email, setEmail] = useState('');
@@ -44,7 +44,7 @@ const Register = () => {
             <div className="auth-card">
                 <div className="auth-header">
                     <div className="brand-logo">
-                        <img src={ServerKitLogo} alt="ServerKit" width="40" height="40" />
+                        <ServerKitLogo width={40} height={40} />
                     </div>
                     <h1>ServerKit</h1>
                     <p>Create your account</p>

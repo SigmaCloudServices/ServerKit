@@ -3037,6 +3037,82 @@ class ApiService {
     async getMailLogs(lines = 100) {
         return this.request(`/email/logs?lines=${lines}`);
     }
+
+    // ==================== SSO / OAuth ====================
+
+    async getSSOProviders() {
+        return this.request('/sso/providers');
+    }
+
+    async startSSOAuth(provider, redirectUri) {
+        return this.request(`/sso/authorize/${provider}?redirect_uri=${encodeURIComponent(redirectUri)}`);
+    }
+
+    async completeSSOAuth(provider, code, state, redirectUri) {
+        const data = await this.request(`/sso/callback/${provider}`, {
+            method: 'POST',
+            body: { code, state, redirect_uri: redirectUri },
+        });
+        if (data.access_token) {
+            this.setTokens(data.access_token, data.refresh_token);
+        }
+        return data;
+    }
+
+    async getSSOIdentities() {
+        return this.request('/sso/identities');
+    }
+
+    async linkSSOProvider(provider, code, state, redirectUri) {
+        return this.request(`/sso/link/${provider}`, {
+            method: 'POST',
+            body: { code, state, redirect_uri: redirectUri },
+        });
+    }
+
+    async unlinkSSOProvider(provider) {
+        return this.request(`/sso/link/${provider}`, { method: 'DELETE' });
+    }
+
+    // SSO Admin
+    async getSSOConfig() {
+        return this.request('/sso/admin/config');
+    }
+
+    async updateSSOProviderConfig(provider, config) {
+        return this.request(`/sso/admin/config/${provider}`, {
+            method: 'PUT',
+            body: config,
+        });
+    }
+
+    async testSSOProvider(provider) {
+        return this.request(`/sso/admin/test/${provider}`, { method: 'POST' });
+    }
+
+    async updateSSOGeneralSettings(settings) {
+        return this.request('/sso/admin/general', {
+            method: 'PUT',
+            body: settings,
+        });
+    }
+
+    // Database Migrations
+    async getMigrationStatus() {
+        return this.request('/migrations/status');
+    }
+
+    async createMigrationBackup() {
+        return this.request('/migrations/backup', { method: 'POST' });
+    }
+
+    async applyMigrations() {
+        return this.request('/migrations/apply', { method: 'POST' });
+    }
+
+    async getMigrationHistory() {
+        return this.request('/migrations/history');
+    }
 }
 
 export const api = new ApiService();

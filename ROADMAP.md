@@ -166,17 +166,17 @@ This document outlines the development roadmap for ServerKit. Features are organ
 
 ---
 
-## Phase 13: Email Server Management (Planned)
+## Phase 13: Email Server Management (Completed)
 
 **Priority: Medium**
 
-- [ ] Postfix mail server setup
-- [ ] Dovecot IMAP/POP3 configuration
-- [ ] Email account management
-- [ ] Spam filtering (SpamAssassin)
-- [ ] DKIM/SPF/DMARC configuration
-- [ ] Webmail interface integration
-- [ ] Email forwarding rules
+- [x] Postfix mail server setup
+- [x] Dovecot IMAP/POP3 configuration
+- [x] Email account management
+- [x] Spam filtering (SpamAssassin)
+- [x] DKIM/SPF/DMARC configuration
+- [x] Webmail interface integration
+- [x] Email forwarding rules
 
 ---
 
@@ -267,20 +267,54 @@ This document outlines the development roadmap for ServerKit. Features are organ
 
 ---
 
-## Phase 21: SSO & OAuth Login (Planned)
+## Phase 21: SSO & OAuth Login (Completed)
 
 **Priority: High**
 
-- [ ] Google OAuth 2.0 login
-- [ ] GitHub OAuth login
-- [ ] Generic OpenID Connect (OIDC) provider support
-- [ ] SAML 2.0 support for enterprise environments
-- [ ] Social login UI (provider buttons on login page)
-- [ ] Account linking (connect OAuth identity to existing local account)
-- [ ] Auto-provisioning of new users on first SSO login
-- [ ] Configurable SSO settings (enable/disable providers, client ID/secret management)
-- [ ] Enforce SSO-only login (disable password auth for team members)
-- [ ] SSO session management and token refresh
+- [x] Google OAuth 2.0 login
+- [x] GitHub OAuth login
+- [x] Generic OpenID Connect (OIDC) provider support
+- [x] SAML 2.0 support for enterprise environments
+- [x] Social login UI (provider buttons on login page)
+- [x] Account linking (connect OAuth identity to existing local account)
+- [x] Auto-provisioning of new users on first SSO login
+- [x] Configurable SSO settings (enable/disable providers, client ID/secret management)
+- [x] Enforce SSO-only login (disable password auth for team members)
+- [x] SSO session management and token refresh
+
+---
+
+## Phase 22: Database Migrations & Schema Versioning (Planned)
+
+**Priority: High**
+
+Matomo-style update wizard — when the user logs in after an update and there are pending migrations, a popup/wizard guides them through the process visually.
+
+### Backend — Migration Engine
+- [ ] Integrate Flask-Migrate (Alembic) for versioned schema migrations
+- [ ] Generate initial migration from current model state as baseline
+- [ ] Replace `_auto_migrate_columns()` hack with proper Alembic migrations
+- [ ] Store schema version in a `schema_version` table (current version, history)
+- [ ] API endpoint to check migration status (`GET /api/v1/system/migrations`)
+- [ ] API endpoint to run pending migrations (`POST /api/v1/system/migrations/apply`)
+- [ ] API endpoint to rollback last migration (`POST /api/v1/system/migrations/rollback`)
+- [ ] Auto-detect pending migrations on login and flag the session
+- [ ] Pre-migration automatic DB backup before applying changes
+- [ ] Migration scripts for all existing model changes (retroactive baseline)
+
+### Frontend — Update Wizard UI
+- [ ] Full-screen modal/wizard that appears when pending migrations are detected
+- [ ] Step 1: "Update Available" — show current version vs new version, changelog summary
+- [ ] Step 2: "Backup" — auto-backup the database, show progress, confirm success
+- [ ] Step 3: "Apply Migrations" — run migrations with real-time progress/log output
+- [ ] Step 4: "Done" — success confirmation with summary of changes applied
+- [ ] Error handling: if a migration fails, show the error and offer rollback option
+- [ ] Block access to the panel until migrations are applied (like Matomo does)
+- [ ] Migration history page in Settings showing all past migrations and timestamps
+
+### CLI Fallback
+- [ ] CLI commands for headless/SSH scenarios (`flask db upgrade`, `flask db status`)
+- [ ] CLI rollback support (`flask db downgrade`)
 
 ---
 
@@ -289,7 +323,7 @@ This document outlines the development roadmap for ServerKit. Features are organ
 | Version | Target Features | Status |
 |---------|-----------------|--------|
 | v0.9.0 | Core features, 2FA, Notifications, Security | Current |
-| v1.0.0 | Production-ready stable release | Planned |
+| v1.0.0 | Production-ready stable release, DB migrations | Planned |
 | v1.1.0 | Multi-server, Git deployment | Planned |
 | v1.2.0 | Backups, Advanced SSL, Advanced Security | Planned |
 | v1.3.0 | Email server, API enhancements | Planned |

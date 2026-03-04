@@ -39,6 +39,11 @@ class AuditLog(db.Model):
     ACTION_DEPLOY = 'app.deploy'
     ACTION_BACKUP_CREATE = 'backup.create'
     ACTION_BACKUP_RESTORE = 'backup.restore'
+    ACTION_SSO_LOGIN = 'sso.login'
+    ACTION_SSO_LOGIN_FAILED = 'sso.login_failed'
+    ACTION_SSO_PROVISION = 'sso.provision'
+    ACTION_SSO_LINK = 'sso.link'
+    ACTION_SSO_UNLINK = 'sso.unlink'
 
     def get_details(self):
         """Return parsed details JSON."""

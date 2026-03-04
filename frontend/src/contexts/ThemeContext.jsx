@@ -4,6 +4,13 @@ const ThemeContext = createContext(null);
 
 const DEFAULT_ACCENT = '#6366f1';
 
+const DEFAULT_WHITE_LABEL = {
+    enabled: false,
+    mode: 'image_text',    // 'image_text' | 'image_full' | 'text_only'
+    brandName: '',
+    logoData: '',          // base64 data URL
+};
+
 // Get the resolved theme based on current setting and OS preference
 function getResolvedTheme(theme) {
     if (theme === 'system') {
@@ -60,6 +67,15 @@ export function ThemeProvider({ children }) {
         return localStorage.getItem('accent_color') || DEFAULT_ACCENT;
     });
 
+    const [whiteLabel, setWhiteLabelState] = useState(() => {
+        try {
+            const stored = localStorage.getItem('white_label');
+            return stored ? { ...DEFAULT_WHITE_LABEL, ...JSON.parse(stored) } : DEFAULT_WHITE_LABEL;
+        } catch {
+            return DEFAULT_WHITE_LABEL;
+        }
+    });
+
     // Update the DOM attribute and resolved theme
     const applyTheme = useCallback((newTheme) => {
         document.documentElement.setAttribute('data-theme', newTheme);
@@ -78,6 +94,15 @@ export function ThemeProvider({ children }) {
         setAccentColorState(hex);
         localStorage.setItem('accent_color', hex);
         applyAccentToDOM(hex);
+    }, []);
+
+    // Public setter for white label config (accepts partial updates)
+    const setWhiteLabel = useCallback((partial) => {
+        setWhiteLabelState(prev => {
+            const next = { ...prev, ...partial };
+            localStorage.setItem('white_label', JSON.stringify(next));
+            return next;
+        });
     }, []);
 
     // Listen for OS theme changes when using 'system' theme
@@ -106,6 +131,8 @@ export function ThemeProvider({ children }) {
         setTheme,        // Function to change theme
         accentColor,     // Current accent hex color
         setAccentColor,  // Function to change accent color
+        whiteLabel,      // White label config object
+        setWhiteLabel,   // Function to update white label config
     };
 
     return (

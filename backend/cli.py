@@ -206,80 +206,102 @@ def generate_keys():
 
 @cli.command()
 def init_db():
-    """Initialize the database."""
+    """Initialize the database using Alembic migrations."""
     app = create_app()
     with app.app_context():
-        db.create_all()
-        click.echo(click.style('Database initialized successfully!', fg='green'))
+        from app.services.migration_service import MigrationService
+        result = MigrationService.apply_migrations(app)
+        if result['success']:
+            click.echo(click.style(f'Database initialized successfully (revision: {result["revision"]})!', fg='green'))
+        else:
+            click.echo(click.style(f'Database initialization failed: {result["error"]}', fg='red'))
+            sys.exit(1)
 
 
 @cli.command()
-def migrate_db():
-    """Apply database migrations for missing columns."""
+def db_status():
+    """Show current database migration status."""
     app = create_app()
     with app.app_context():
-        from sqlalchemy import text, inspect
+        from app.services.migration_service import MigrationService
+        status = MigrationService.get_status()
 
-        inspector = inspect(db.engine)
-        existing_tables = inspector.get_table_names()
+        click.echo(f"\nCurrent revision: {status['current_revision'] or 'none'}")
+        click.echo(f"Head revision:    {status['head_revision'] or 'none'}")
+        click.echo(f"Pending:          {status['pending_count']}")
 
-        # Define all expected columns per table
-        expected_columns = [
-            # applications table
-            ('applications', 'private_slug', 'VARCHAR(50)'),
-            ('applications', 'private_url_enabled', 'BOOLEAN DEFAULT 0'),
-            ('applications', 'environment_type', "VARCHAR(20) DEFAULT 'standalone'"),
-            ('applications', 'linked_app_id', 'INTEGER'),
-            ('applications', 'shared_config', 'TEXT'),
-            # wordpress_sites table
-            ('wordpress_sites', 'environment_type', "VARCHAR(20) DEFAULT 'standalone'"),
-            ('wordpress_sites', 'multidev_branch', 'VARCHAR(200)'),
-            ('wordpress_sites', 'is_locked', 'BOOLEAN DEFAULT 0'),
-            ('wordpress_sites', 'locked_by', 'VARCHAR(100)'),
-            ('wordpress_sites', 'locked_reason', 'VARCHAR(200)'),
-            ('wordpress_sites', 'lock_expires_at', 'DATETIME'),
-            ('wordpress_sites', 'compose_project_name', 'VARCHAR(100)'),
-            ('wordpress_sites', 'container_prefix', 'VARCHAR(100)'),
-            ('wordpress_sites', 'resource_limits', 'TEXT'),
-            ('wordpress_sites', 'basic_auth_enabled', 'BOOLEAN DEFAULT 0'),
-            ('wordpress_sites', 'basic_auth_user', 'VARCHAR(100)'),
-            ('wordpress_sites', 'basic_auth_password_hash', 'VARCHAR(200)'),
-            ('wordpress_sites', 'health_status', "VARCHAR(20) DEFAULT 'unknown'"),
-            ('wordpress_sites', 'last_health_check', 'DATETIME'),
-            ('wordpress_sites', 'disk_usage_bytes', 'BIGINT DEFAULT 0'),
-            ('wordpress_sites', 'disk_usage_updated_at', 'DATETIME'),
-            ('wordpress_sites', 'auto_sync_schedule', 'VARCHAR(100)'),
-            ('wordpress_sites', 'auto_sync_enabled', 'BOOLEAN DEFAULT 0'),
-        ]
+        if status['pending_migrations']:
+            click.echo(f"\nPending migrations:")
+            for m in status['pending_migrations']:
+                click.echo(f"  - {m['revision']}: {m['description']}")
+        else:
+            click.echo(click.style('\nDatabase is up to date.', fg='green'))
+        click.echo()
 
-        # Check which columns are missing
-        table_columns_cache = {}
-        migrations = []
 
-        for table, column, col_type in expected_columns:
-            if table not in existing_tables:
-                continue
-            if table not in table_columns_cache:
-                table_columns_cache[table] = [col['name'] for col in inspector.get_columns(table)]
-            if column not in table_columns_cache[table]:
-                migrations.append((table, column, col_type))
+@cli.command()
+@click.option('--no-backup', is_flag=True, help='Skip creating a backup before migrating')
+def db_migrate(no_backup):
+    """Apply pending database migrations."""
+    app = create_app()
+    with app.app_context():
+        from app.services.migration_service import MigrationService
+        status = MigrationService.get_status()
 
-        if not migrations:
+        if not status['needs_migration']:
             click.echo(click.style('Database is up to date. No migrations needed.', fg='green'))
             return
 
-        click.echo(f'Found {len(migrations)} migration(s) to apply...')
+        click.echo(f'Found {status["pending_count"]} pending migration(s):')
+        for m in status['pending_migrations']:
+            click.echo(f'  - {m["revision"]}: {m["description"]}')
 
-        for table, column, col_type in migrations:
-            try:
-                sql = f'ALTER TABLE {table} ADD COLUMN {column} {col_type}'
-                db.session.execute(text(sql))
-                click.echo(click.style(f'  ✓ Added column {table}.{column}', fg='green'))
-            except Exception as e:
-                click.echo(click.style(f'  ✗ Failed to add {table}.{column}: {e}', fg='red'))
+        if not no_backup:
+            click.echo('\nCreating backup...')
+            backup = MigrationService.create_backup(app)
+            if backup['success']:
+                click.echo(click.style(f'  Backup saved to: {backup["path"]}', fg='green'))
+            else:
+                click.echo(click.style(f'  Backup failed: {backup["error"]}', fg='red'))
+                if not click.confirm('Continue without backup?'):
+                    return
 
-        db.session.commit()
-        click.echo(click.style('\nMigrations completed!', fg='green'))
+        click.echo('\nApplying migrations...')
+        result = MigrationService.apply_migrations(app)
+        if result['success']:
+            click.echo(click.style(f'\nMigrations applied! Now at revision: {result["revision"]}', fg='green'))
+        else:
+            click.echo(click.style(f'\nMigration failed: {result["error"]}', fg='red'))
+            sys.exit(1)
+
+
+@cli.command()
+def db_history():
+    """Show all database migration revisions."""
+    app = create_app()
+    with app.app_context():
+        from app.services.migration_service import MigrationService
+        history = MigrationService.get_migration_history(app)
+
+        if not history:
+            click.echo('No migration history found.')
+            return
+
+        click.echo(f"\n{'Revision':<20} {'Description':<50} {'Status'}")
+        click.echo('-' * 80)
+
+        for rev in history:
+            status_parts = []
+            if rev['is_current']:
+                status_parts.append('CURRENT')
+            if rev['is_head']:
+                status_parts.append('HEAD')
+            status = ', '.join(status_parts) if status_parts else ''
+
+            desc = rev['description'][:48] if rev['description'] else ''
+            click.echo(f"{rev['revision']:<20} {desc:<50} {status}")
+
+        click.echo()
 
 
 @cli.command()
@@ -542,11 +564,15 @@ def factory_reset():
             except Exception as e:
                 click.echo(click.style(f'✗ Failed to clear template cache: {e}', fg='red'))
 
-        # 7. Drop and recreate database
+        # 7. Drop and recreate database via Alembic
         try:
             db.drop_all()
-            db.create_all()
-            click.echo(click.style('✓ Reset database', fg='green'))
+            from app.services.migration_service import MigrationService
+            result = MigrationService.apply_migrations(app)
+            if result['success']:
+                click.echo(click.style('✓ Reset database', fg='green'))
+            else:
+                click.echo(click.style(f'✗ Migration after reset failed: {result["error"]}', fg='red'))
         except Exception as e:
             click.echo(click.style(f'✗ Failed to reset database: {e}', fg='red'))
 

@@ -16,7 +16,8 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(256), nullable=False)
+    password_hash = db.Column(db.String(256), nullable=True)
+    auth_provider = db.Column(db.String(50), default='local')  # local, google, github, oidc, saml
     role = db.Column(db.String(20), default='developer')  # 'admin', 'developer', 'viewer'
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -69,6 +70,8 @@ class User(db.Model):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
 
     @property
@@ -90,6 +93,10 @@ class User(db.Model):
         """Check if user has any of the specified roles."""
         return self.role in roles
 
+    @property
+    def has_password(self):
+        return self.password_hash is not None
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -98,6 +105,8 @@ class User(db.Model):
             'role': self.role,
             'is_active': self.is_active,
             'totp_enabled': self.totp_enabled,
+            'auth_provider': self.auth_provider or 'local',
+            'has_password': self.has_password,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,

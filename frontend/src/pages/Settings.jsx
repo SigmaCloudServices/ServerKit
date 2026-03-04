@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useTabParam from '../hooks/useTabParam';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -6,6 +6,9 @@ import useDashboardLayout from '../hooks/useDashboardLayout';
 import api from '../services/api';
 import UsersTab from '../components/settings/UsersTab';
 import AuditLogTab from '../components/settings/AuditLogTab';
+import SSOConfigTab from '../components/settings/SSOConfigTab';
+import MigrationHistoryTab from '../components/settings/MigrationHistoryTab';
+import SSOProviderIcon from '../components/SSOProviderIcon';
 import {
     Github, FileText, HelpCircle, MessageSquare, Bug, Check, Download, CheckCircle,
     RefreshCw, ExternalLink, Star, X, Code, Search, Container, Globe, BarChart3,
@@ -16,11 +19,11 @@ import {
     Radio, Zap, MemoryStick, Monitor, Sun, Moon, ChevronRight, ChevronUp, LogOut,
     Loader, RotateCcw, FolderOpen, Layout, Palette, Camera, Newspaper, TrendingUp,
     Sparkles, ArrowUpCircle, AlertCircle, XCircle, GitCompare, GitCommit, Rocket,
-    Minus, Unlock, ArrowDownLeft, ArrowUpRight
+    Minus, Unlock, ArrowDownLeft, ArrowUpRight, Upload, Type
 } from 'lucide-react';
-import ServerKitLogo from '../assets/ServerKitLogo.svg';
+import ServerKitLogo from '../components/ServerKitLogo';
 
-const VALID_TABS = ['profile', 'security', 'appearance', 'notifications', 'system', 'users', 'audit', 'site', 'developer', 'about'];
+const VALID_TABS = ['profile', 'security', 'appearance', 'notifications', 'system', 'users', 'audit', 'site', 'sso', 'migrations', 'developer', 'about'];
 
 const Settings = () => {
     const [activeTab, setActiveTab] = useTabParam('/settings', VALID_TABS);
@@ -142,6 +145,24 @@ const Settings = () => {
                                 </svg>
                                 Site Settings
                             </button>
+                            <button
+                                className={`settings-nav-item ${activeTab === 'sso' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('sso')}
+                            >
+                                <svg viewBox="0 0 24 24" width="18" height="18">
+                                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                                    <polyline points="10 17 15 12 10 7"/>
+                                    <line x1="15" y1="12" x2="3" y2="12"/>
+                                </svg>
+                                SSO
+                            </button>
+                            <button
+                                className={`settings-nav-item ${activeTab === 'migrations' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('migrations')}
+                            >
+                                <Database size={18} />
+                                Migrations
+                            </button>
                         </>
                     )}
                     {devMode && isAdmin && (
@@ -178,6 +199,8 @@ const Settings = () => {
                     {activeTab === 'users' && isAdmin && <UsersTab />}
                     {activeTab === 'audit' && isAdmin && <AuditLogTab />}
                     {activeTab === 'site' && isAdmin && <SiteSettings onDevModeChange={setDevMode} />}
+                    {activeTab === 'sso' && isAdmin && <SSOConfigTab />}
+                    {activeTab === 'migrations' && isAdmin && <MigrationHistoryTab />}
                     {activeTab === 'developer' && devMode && isAdmin && <IconReference />}
                     {activeTab === 'about' && <AboutSection />}
                 </div>
@@ -275,6 +298,112 @@ const ProfileSettings = () => {
                     </button>
                 </div>
             </form>
+        </div>
+    );
+};
+
+const LinkedAccounts = () => {
+    const { ssoProviders } = useAuth();
+    const [identities, setIdentities] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [unlinking, setUnlinking] = useState(null);
+    const [linkingProvider, setLinkingProvider] = useState(null);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        loadIdentities();
+    }, []);
+
+    async function loadIdentities() {
+        try {
+            const data = await api.getSSOIdentities();
+            setIdentities(data.identities || []);
+        } catch (err) {
+            // SSO may not be configured; silently handle
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function handleUnlink(provider) {
+        setUnlinking(provider);
+        setError('');
+        try {
+            await api.unlinkSSOProvider(provider);
+            await loadIdentities();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setUnlinking(null);
+        }
+    }
+
+    async function handleLink(provider) {
+        setLinkingProvider(provider);
+        setError('');
+        try {
+            const redirectUri = `${window.location.origin}/login/callback/${provider}`;
+            const { auth_url } = await api.startSSOAuth(provider, redirectUri);
+            window.location.href = auth_url;
+        } catch (err) {
+            setError(err.message);
+            setLinkingProvider(null);
+        }
+    }
+
+    // Only show if SSO is configured
+    if (loading || (!ssoProviders?.length && !identities.length)) {
+        return null;
+    }
+
+    const linkedProviderIds = identities.map(i => i.provider);
+    const availableToLink = (ssoProviders || []).filter(p => !linkedProviderIds.includes(p.id));
+
+    return (
+        <div className="settings-card">
+            <h3>Linked Accounts</h3>
+            <p className="text-secondary">Connect external identity providers to your account</p>
+
+            {error && <div className="alert alert-danger">{error}</div>}
+
+            {identities.length > 0 && (
+                <div className="linked-accounts-list">
+                    {identities.map(identity => (
+                        <div key={identity.id} className="linked-account">
+                            <div className="linked-account__info">
+                                <SSOProviderIcon provider={identity.provider} />
+                                <div>
+                                    <span className="linked-account__provider">{identity.provider}</span>
+                                    <span className="linked-account__email">{identity.provider_email}</span>
+                                </div>
+                            </div>
+                            <button
+                                className="btn btn-sm btn-danger"
+                                onClick={() => handleUnlink(identity.provider)}
+                                disabled={unlinking === identity.provider}
+                            >
+                                {unlinking === identity.provider ? 'Unlinking...' : 'Unlink'}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {availableToLink.length > 0 && (
+                <div className="linked-accounts-available">
+                    {availableToLink.map(p => (
+                        <button
+                            key={p.id}
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleLink(p.id)}
+                            disabled={linkingProvider === p.id}
+                        >
+                            <SSOProviderIcon provider={p.id} />
+                            {linkingProvider === p.id ? 'Redirecting...' : `Link ${p.name}`}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
@@ -591,6 +720,9 @@ Keep these codes in a safe place.`;
                 </div>
             </div>
 
+            {/* Linked Accounts */}
+            <LinkedAccounts />
+
             {/* 2FA Setup Modal */}
             {showSetupModal && setupData && (
                 <div className="modal-overlay" onClick={() => setShowSetupModal(false)}>
@@ -796,9 +928,16 @@ const ACCENT_PRESETS = [
     { label: 'Cyan', color: '#06b6d4' },
 ];
 
+const WHITELABEL_MODES = [
+    { id: 'image_text', label: 'Logo + Text', icon: Layers, desc: 'Mini logo with brand name' },
+    { id: 'image_full', label: 'Full-width Logo', icon: Image, desc: 'Banner image only' },
+    { id: 'text_only', label: 'Text Only', icon: Type, desc: 'Just the brand name' },
+];
+
 const AppearanceSettings = () => {
-    const { theme, setTheme, accentColor, setAccentColor } = useTheme();
+    const { theme, setTheme, accentColor, setAccentColor, whiteLabel, setWhiteLabel } = useTheme();
     const { widgets, toggleWidget, moveWidget, resetLayout } = useDashboardLayout();
+    const logoInputRef = useRef(null);
 
     return (
         <div className="settings-section">
@@ -924,6 +1063,158 @@ const AppearanceSettings = () => {
                     <RotateCcw size={14} />
                     Reset to defaults
                 </button>
+            </div>
+
+            <div className="settings-card">
+                <h3>Custom Branding</h3>
+                <p>Replace the default ServerKit branding in the sidebar with your own</p>
+
+                <div className="settings-row">
+                    <div className="settings-label">
+                        <span>Enable custom branding</span>
+                        <span className="settings-hint">Replaces the sidebar logo, name, and GitHub star link</span>
+                    </div>
+                    <div className="settings-control">
+                        <label className="toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={whiteLabel.enabled}
+                                onChange={(e) => setWhiteLabel({ enabled: e.target.checked })}
+                            />
+                            <span className="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                {whiteLabel.enabled && (
+                    <>
+                        <div className="whitelabel-modes">
+                            {WHITELABEL_MODES.map(({ id, label, icon: Icon, desc }) => (
+                                <button
+                                    key={id}
+                                    className={`whitelabel-mode${whiteLabel.mode === id ? ' active' : ''}`}
+                                    onClick={() => setWhiteLabel({ mode: id })}
+                                >
+                                    <Icon size={20} />
+                                    <span className="whitelabel-mode__label">{label}</span>
+                                    <span className="whitelabel-mode__desc">{desc}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="whitelabel-fields">
+                            {whiteLabel.mode !== 'image_full' && (
+                                <div className="form-group">
+                                    <label>Brand Name</label>
+                                    <input
+                                        type="text"
+                                        value={whiteLabel.brandName}
+                                        onChange={(e) => setWhiteLabel({ brandName: e.target.value })}
+                                        placeholder="My Brand"
+                                        maxLength={30}
+                                    />
+                                </div>
+                            )}
+
+                            {whiteLabel.mode !== 'text_only' && (
+                                <div className="form-group">
+                                    <label>Logo Image</label>
+                                    <div className="whitelabel-upload" onClick={() => logoInputRef.current?.click()}>
+                                        {whiteLabel.logoData ? (
+                                            <div className="whitelabel-logo-preview">
+                                                <img src={whiteLabel.logoData} alt="Logo preview" />
+                                                <button
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={(e) => { e.stopPropagation(); setWhiteLabel({ logoData: '' }); }}
+                                                >
+                                                    <X size={12} /> Remove
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="whitelabel-upload__placeholder">
+                                                <Upload size={20} />
+                                                <span>Click to upload logo</span>
+                                                <span className="whitelabel-upload__hint">PNG, JPG, SVG — max 200KB</span>
+                                            </div>
+                                        )}
+                                        <input
+                                            ref={logoInputRef}
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                            style={{ display: 'none' }}
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                if (file.size > 200 * 1024) {
+                                                    alert('Image must be under 200KB');
+                                                    return;
+                                                }
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => setWhiteLabel({ logoData: ev.target.result });
+                                                reader.readAsDataURL(file);
+                                                e.target.value = '';
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="whitelabel-preview">
+                            <span className="whitelabel-preview__label">Preview</span>
+                            <div className="whitelabel-preview__box">
+                                {whiteLabel.mode === 'image_full' ? (
+                                    <div className="brand-custom-banner">
+                                        {whiteLabel.logoData ? (
+                                            <img src={whiteLabel.logoData} alt="Preview" />
+                                        ) : (
+                                            <Layers size={24} />
+                                        )}
+                                    </div>
+                                ) : whiteLabel.mode === 'text_only' ? (
+                                    <span className="brand-custom-text">
+                                        {whiteLabel.brandName || 'Brand'}
+                                    </span>
+                                ) : (
+                                    <>
+                                        <div className="brand-custom-logo">
+                                            {whiteLabel.logoData ? (
+                                                <img src={whiteLabel.logoData} alt="Preview" />
+                                            ) : (
+                                                <Layers size={16} />
+                                            )}
+                                        </div>
+                                        <span className="brand-custom-text">
+                                            {whiteLabel.brandName || 'Brand'}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="whitelabel-star-prompt">
+                            <div className="star-icon">
+                                <Star size={22} />
+                            </div>
+                            <div className="star-content">
+                                <h4>Support ServerKit</h4>
+                                <p>
+                                    By using custom branding, the GitHub star link is hidden from the sidebar.
+                                    If ServerKit is useful to you, please consider starring the project — it helps the community grow!
+                                </p>
+                                <a
+                                    href="https://github.com/jhd3197/ServerKit"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn-primary btn-sm"
+                                >
+                                    <Star size={14} />
+                                    Star on GitHub
+                                </a>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -1893,7 +2184,7 @@ const AboutSection = () => {
 
             <div className="about-card">
                 <div className="about-logo">
-                    <img src={ServerKitLogo} alt="ServerKit Logo" width="64" height="64" />
+                    <ServerKitLogo width={64} height={64} />
                 </div>
                 <h3>ServerKit</h3>
                 <p className="version">Version {version}</p>
