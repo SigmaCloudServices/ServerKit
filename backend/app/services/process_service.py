@@ -3,7 +3,7 @@ import subprocess
 import platform
 from typing import List, Dict, Optional
 
-from app.utils.system import run_privileged, is_command_available
+from app.utils.system import run_privileged
 
 
 class ProcessService:
@@ -171,28 +171,6 @@ class ProcessService:
 
     @classmethod
     def get_service_logs(cls, service_name: str, lines: int = 100) -> Dict:
-        """Get recent logs for a service."""
-        system = platform.system()
-
-        try:
-            if system == 'Linux':
-                if not is_command_available('journalctl'):
-                    return {'success': False, 'error': 'journalctl is not available on this system'}
-
-                result = run_privileged(
-                    ['journalctl', '-u', service_name, '-n', str(lines), '--no-pager'],
-                    timeout=30
-                )
-
-                if result.returncode == 0:
-                    return {'success': True, 'logs': result.stdout}
-                else:
-                    return {'success': False, 'error': result.stderr}
-
-            else:
-                return {'success': False, 'error': 'Log retrieval not supported on this platform'}
-
-        except FileNotFoundError:
-            return {'success': False, 'error': 'journalctl command not found'}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        """Get recent logs for a service via LogService fallback chain."""
+        from app.services.log_service import LogService
+        return LogService.get_journalctl_logs(unit=service_name, lines=lines)

@@ -4,6 +4,8 @@ import subprocess
 import os
 from datetime import datetime
 
+from app.utils.system import run_privileged
+
 
 class SystemService:
     """Service for collecting system metrics and information."""
@@ -375,23 +377,23 @@ class SystemService:
 
         try:
             # Try timedatectl first (systemd)
-            result = subprocess.run(
-                ['sudo', 'timedatectl', 'set-timezone', timezone_id],
-                capture_output=True, text=True, timeout=10
+            result = run_privileged(
+                ['timedatectl', 'set-timezone', timezone_id],
+                timeout=10
             )
             if result.returncode == 0:
                 return {'success': True, 'message': f'Timezone set to {timezone_id}'}
 
             # Fallback: symlink method
-            result = subprocess.run(
-                ['sudo', 'ln', '-sf', f'/usr/share/zoneinfo/{timezone_id}', '/etc/localtime'],
-                capture_output=True, text=True, timeout=10
+            result = run_privileged(
+                ['ln', '-sf', f'/usr/share/zoneinfo/{timezone_id}', '/etc/localtime'],
+                timeout=10
             )
             if result.returncode == 0:
                 # Also update /etc/timezone
-                subprocess.run(
-                    ['sudo', 'bash', '-c', f'echo "{timezone_id}" > /etc/timezone'],
-                    capture_output=True, text=True, timeout=10
+                run_privileged(
+                    ['bash', '-c', f'echo "{timezone_id}" > /etc/timezone'],
+                    timeout=10
                 )
                 return {'success': True, 'message': f'Timezone set to {timezone_id}'}
 

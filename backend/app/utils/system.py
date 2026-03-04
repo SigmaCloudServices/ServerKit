@@ -75,6 +75,21 @@ def is_command_available(cmd: str) -> bool:
     return False
 
 
+def sourced_result(lines: list, source: str, source_label: str) -> dict:
+    """Standard response shape for multi-source data endpoints.
+
+    Every fallback-chain endpoint should return this shape so the frontend
+    can show a consistent source-aware banner.
+    """
+    return {
+        'success': True,
+        'lines': lines,
+        'count': len(lines),
+        'source': source,
+        'source_label': source_label,
+    }
+
+
 class PackageManager:
     """Cross-distro package management helpers.
 

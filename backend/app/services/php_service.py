@@ -4,7 +4,7 @@ import re
 from typing import Dict, List, Optional
 from pathlib import Path
 
-from app.utils.system import PackageManager, ServiceControl, run_privileged
+from app.utils.system import PackageManager, ServiceControl, run_privileged, is_command_available
 
 
 class PHPService:
@@ -77,7 +77,7 @@ env[TEMP] = /tmp
                         timeout=10
                     )
                     full_version = result.stdout.split('\n')[0] if result.returncode == 0 else version
-                except:
+                except Exception:
                     full_version = version
 
                 # Check if FPM is installed
@@ -88,7 +88,7 @@ env[TEMP] = /tmp
                 if fpm_installed:
                     try:
                         fpm_running = ServiceControl.is_active(f'php{version}-fpm')
-                    except:
+                    except Exception:
                         pass
 
                 versions.append({
@@ -116,7 +116,7 @@ env[TEMP] = /tmp
                 match = re.search(r'PHP (\d+\.\d+)', result.stdout)
                 if match:
                     return match.group(1)
-        except:
+        except Exception:
             pass
         return None
 
@@ -150,13 +150,17 @@ env[TEMP] = /tmp
             return {'success': False, 'error': f'Unsupported PHP version: {version}'}
 
         try:
-            # Add PHP repository if needed
-            run_privileged(
-                ['add-apt-repository', '-y', 'ppa:ondrej/php'],
-                timeout=120,
-            )
+            # Add PHP repository if needed (Ubuntu/Debian only)
+            if is_command_available('add-apt-repository'):
+                run_privileged(
+                    ['add-apt-repository', '-y', 'ppa:ondrej/php'],
+                    timeout=120,
+                )
 
-            run_privileged(['apt-get', 'update'], timeout=120)
+            # Update package lists (apt-specific, safe to skip on non-apt)
+            manager = PackageManager.detect()
+            if manager == 'apt':
+                run_privileged(['apt-get', 'update'], timeout=120)
 
             # Install PHP and common extensions
             packages = [
@@ -177,10 +181,7 @@ env[TEMP] = /tmp
                 f'php{version}-bcmath',
             ]
 
-            result = run_privileged(
-                ['apt-get', 'install', '-y'] + packages,
-                timeout=600,
-            )
+            result = PackageManager.install(packages, timeout=600)
 
             if result.returncode == 0:
                 # Start FPM service
@@ -216,7 +217,7 @@ env[TEMP] = /tmp
                             'name': ext,
                             'enabled': True
                         })
-        except:
+        except Exception:
             pass
 
         return extensions
@@ -227,10 +228,7 @@ env[TEMP] = /tmp
         package = f'php{version}-{extension}'
 
         try:
-            result = run_privileged(
-                ['apt-get', 'install', '-y', package],
-                timeout=120,
-            )
+            result = PackageManager.install(package, timeout=120)
 
             if result.returncode == 0:
                 # Restart FPM to load extension
@@ -263,7 +261,7 @@ env[TEMP] = /tmp
                         'pm': config.get('pm', 'dynamic'),
                         'max_children': config.get('pm.max_children', '5')
                     })
-        except Exception as e:
+        except Exception:
             pass
 
         return pools
@@ -279,7 +277,7 @@ env[TEMP] = /tmp
                     if line and not line.startswith(';') and '=' in line:
                         key, value = line.split('=', 1)
                         config[key.strip()] = value.strip()
-        except:
+        except Exception:
             pass
         return config
 

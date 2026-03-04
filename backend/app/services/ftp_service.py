@@ -4,7 +4,7 @@ import os
 import subprocess
 import re
 
-from app.utils.system import PackageManager, ServiceControl, run_privileged
+from app.utils.system import PackageManager, ServiceControl, run_privileged, privileged_cmd
 try:
     import pwd
 except ImportError:
@@ -285,6 +285,9 @@ class FTPService:
     @classmethod
     def list_users(cls) -> Dict:
         """List FTP users."""
+        if pwd is None:
+            return {'success': False, 'error': 'User management requires Linux'}
+
         try:
             users = []
 
@@ -340,6 +343,9 @@ class FTPService:
     @classmethod
     def create_user(cls, username: str, password: str = None, home_dir: str = None) -> Dict:
         """Create a new FTP user."""
+        if pwd is None:
+            return {'success': False, 'error': 'User management requires Linux'}
+
         # Validate username
         if not re.match(r'^[a-z][a-z0-9_-]{2,31}$', username):
             return {'success': False, 'error': 'Invalid username. Use lowercase letters, numbers, underscore, hyphen. 3-32 chars.'}
@@ -361,26 +367,29 @@ class FTPService:
 
         try:
             # Create user with restricted shell
-            result = subprocess.run([
-                'sudo', 'useradd',
+            result = run_privileged([
+                'useradd',
                 '-m',  # Create home directory
                 '-d', home_dir,
                 '-s', '/usr/sbin/nologin',  # No shell access
                 '-c', f'FTP User {username}',
                 username
-            ], capture_output=True, text=True)
+            ])
 
             if result.returncode != 0:
                 return {'success': False, 'error': result.stderr or 'Failed to create user'}
 
             # Set password
             proc = subprocess.Popen(
-                ['sudo', 'chpasswd'],
+                privileged_cmd(['chpasswd']),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
-            proc.communicate(input=f'{username}:{password}'.encode())
+            stdout, stderr = proc.communicate(input=f'{username}:{password}'.encode())
+
+            if proc.returncode != 0:
+                return {'success': False, 'error': stderr.decode() or 'Failed to set password'}
 
             # Add to vsftpd userlist if it exists
             if os.path.exists(cls.VSFTPD_USER_LIST):
@@ -388,7 +397,7 @@ class FTPService:
                     f.write(f'{username}\n')
 
             # Set proper permissions on home directory
-            subprocess.run(['sudo', 'chmod', '755', home_dir], capture_output=True)
+            run_privileged(['chmod', '755', home_dir])
 
             return {
                 'success': True,
@@ -404,6 +413,9 @@ class FTPService:
     @classmethod
     def delete_user(cls, username: str, delete_home: bool = False) -> Dict:
         """Delete an FTP user."""
+        if pwd is None:
+            return {'success': False, 'error': 'User management requires Linux'}
+
         try:
             # Check if user exists
             try:
@@ -412,12 +424,12 @@ class FTPService:
                 return {'success': False, 'error': 'User not found'}
 
             # Delete user
-            cmd = ['sudo', 'userdel']
+            cmd = ['userdel']
             if delete_home:
                 cmd.append('-r')
             cmd.append(username)
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = run_privileged(cmd)
 
             if result.returncode != 0:
                 return {'success': False, 'error': result.stderr or 'Failed to delete user'}
@@ -437,6 +449,9 @@ class FTPService:
     @classmethod
     def change_password(cls, username: str, new_password: str = None) -> Dict:
         """Change FTP user password."""
+        if pwd is None:
+            return {'success': False, 'error': 'User management requires Linux'}
+
         try:
             # Check if user exists
             try:
@@ -450,7 +465,7 @@ class FTPService:
 
             # Set password
             proc = subprocess.Popen(
-                ['sudo', 'chpasswd'],
+                privileged_cmd(['chpasswd']),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
@@ -537,6 +552,9 @@ class FTPService:
     @classmethod
     def toggle_user(cls, username: str, enabled: bool) -> Dict:
         """Enable or disable an FTP user."""
+        if pwd is None:
+            return {'success': False, 'error': 'User management requires Linux'}
+
         try:
             # Check if user exists
             try:
@@ -551,9 +569,8 @@ class FTPService:
                 # Change shell to /bin/false to disable
                 shell = '/bin/false'
 
-            result = subprocess.run(
-                ['sudo', 'usermod', '-s', shell, username],
-                capture_output=True, text=True
+            result = run_privileged(
+                ['usermod', '-s', shell, username]
             )
 
             if result.returncode != 0:
@@ -573,9 +590,8 @@ class FTPService:
     def disconnect_session(cls, pid: int) -> Dict:
         """Disconnect an active FTP session by PID."""
         try:
-            result = subprocess.run(
-                ['sudo', 'kill', str(pid)],
-                capture_output=True, text=True
+            result = run_privileged(
+                ['kill', str(pid)]
             )
 
             if result.returncode != 0:

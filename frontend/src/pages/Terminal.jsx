@@ -321,20 +321,26 @@ const JournalTab = () => {
     const [unit, setUnit] = useState('');
     const [lineCount, setLineCount] = useState(100);
     const [priority, setPriority] = useState('');
+    const [source, setSource] = useState('');
+    const [sourceLabel, setSourceLabel] = useState('');
     const [commonUnits] = useState([
         'nginx', 'apache2', 'mysql', 'mariadb', 'postgresql',
         'php-fpm', 'docker', 'sshd', 'cron', 'systemd'
     ]);
+
+    const isJournalctl = source === 'journalctl' || source === '';
 
     async function loadJournalLogs() {
         setLoading(true);
         setUnavailable(false);
         try {
             const data = await api.getJournalLogs(unit || null, lineCount);
-            setLogs(data.content || data.logs || 'No logs available');
+            setLogs(data.lines?.join('\n') || 'No logs available');
+            setSource(data.source || '');
+            setSourceLabel(data.source_label || '');
         } catch (err) {
             const msg = err.message || '';
-            if (msg.includes('not available') || msg.includes('not found')) {
+            if (msg.includes('No system log source available') || msg.includes('unavailable')) {
                 setUnavailable(true);
             } else {
                 setLogs(`Error: ${msg}`);
@@ -358,11 +364,11 @@ const JournalTab = () => {
                         <line x1="9" y1="13" x2="15" y2="13"/>
                         <line x1="9" y1="17" x2="11" y2="17"/>
                     </svg>
-                    <h3>System Journal Unavailable</h3>
+                    <h3>System Logs Unavailable</h3>
                     <p>
-                        <code>journalctl</code> is not available on this system.
-                        This typically means the server is running without systemd
-                        (e.g. a minimal Docker container or Windows dev environment).
+                        No system log source was found on this server.
+                        Neither <code>journalctl</code>, <code>/var/log/syslog</code>,
+                        nor the Windows Event Log are available.
                     </p>
                     <p className="text-muted">
                         Use the <strong>Log Files</strong> tab to browse available log files instead.
@@ -376,7 +382,7 @@ const JournalTab = () => {
         <div className="journal-container">
             <div className="journal-controls">
                 <div className="control-group">
-                    <label>Service/Unit</label>
+                    <label>{isJournalctl ? 'Service/Unit' : 'Filter by service'}</label>
                     <div className="input-with-suggestions">
                         <input
                             type="text"
@@ -384,17 +390,19 @@ const JournalTab = () => {
                             onChange={(e) => setUnit(e.target.value)}
                             placeholder="All services"
                         />
-                        <div className="quick-units">
-                            {commonUnits.map(u => (
-                                <button
-                                    key={u}
-                                    className={`unit-chip ${unit === u ? 'active' : ''}`}
-                                    onClick={() => setUnit(unit === u ? '' : u)}
-                                >
-                                    {u}
-                                </button>
-                            ))}
-                        </div>
+                        {isJournalctl && (
+                            <div className="quick-units">
+                                {commonUnits.map(u => (
+                                    <button
+                                        key={u}
+                                        className={`unit-chip ${unit === u ? 'active' : ''}`}
+                                        onClick={() => setUnit(unit === u ? '' : u)}
+                                    >
+                                        {u}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -408,25 +416,40 @@ const JournalTab = () => {
                     </select>
                 </div>
 
-                <div className="control-group">
-                    <label>Priority</label>
-                    <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-                        <option value="">All</option>
-                        <option value="0">Emergency</option>
-                        <option value="1">Alert</option>
-                        <option value="2">Critical</option>
-                        <option value="3">Error</option>
-                        <option value="4">Warning</option>
-                        <option value="5">Notice</option>
-                        <option value="6">Info</option>
-                        <option value="7">Debug</option>
-                    </select>
-                </div>
+                {isJournalctl && (
+                    <div className="control-group">
+                        <label>Priority</label>
+                        <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+                            <option value="">All</option>
+                            <option value="0">Emergency</option>
+                            <option value="1">Alert</option>
+                            <option value="2">Critical</option>
+                            <option value="3">Error</option>
+                            <option value="4">Warning</option>
+                            <option value="5">Notice</option>
+                            <option value="6">Info</option>
+                            <option value="7">Debug</option>
+                        </select>
+                    </div>
+                )}
 
                 <button className="btn btn-primary" onClick={loadJournalLogs} disabled={loading}>
                     {loading ? 'Loading...' : 'Load Logs'}
                 </button>
             </div>
+
+            {!isJournalctl && source && (
+                <div className="journal-source-notice">
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <span>
+                        Reading from <strong>{sourceLabel}</strong> — journalctl is not available on this system
+                    </span>
+                </div>
+            )}
 
             <div className="journal-viewer">
                 <pre>{loading ? 'Loading journal logs...' : logs}</pre>
@@ -711,7 +734,7 @@ const ServicesTab = () => {
         setShowLogsModal(true);
         try {
             const data = await api.getJournalLogs(serviceName, 100);
-            setServiceLogs(data.content || data.logs || 'No logs available');
+            setServiceLogs(data.lines?.join('\n') || 'No logs available');
         } catch (err) {
             setServiceLogs(`Error loading logs: ${err.message}`);
         }

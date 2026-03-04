@@ -358,6 +358,22 @@
     }
 }
 
+.journal-source-notice {
+    display: flex;
+    align-items: center;
+    gap: @space-2;
+    padding: @space-2 @space-4;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: @radius-md;
+    font-size: @font-size-xs;
+    color: var(--text-secondary);
+    margin-top: -@space-4;
+
+    svg { stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+    strong { color: var(--text-primary); }
+}
+
 .journal-viewer {
     flex: 1;
     background: var(--bg-code);

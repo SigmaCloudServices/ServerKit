@@ -13,6 +13,7 @@ import uuid
 import schedule
 
 from app import paths
+from app.utils.system import is_command_available
 
 
 class BackupService:
@@ -145,6 +146,8 @@ class BackupService:
 
         try:
             if db_type == 'mysql':
+                if not is_command_available('mysqldump'):
+                    return {'success': False, 'error': 'mysqldump not installed'}
                 cmd = ['mysqldump']
                 if config.get('user'):
                     cmd.extend(['-u', config['user']])
@@ -161,6 +164,9 @@ class BackupService:
                     return {'success': False, 'error': result.stderr}
 
             elif db_type == 'postgresql':
+                if not is_command_available('pg_dump'):
+                    return {'success': False, 'error': 'pg_dump not installed'}
+
                 env = os.environ.copy()
                 if config.get('password'):
                     env['PGPASSWORD'] = config['password']
@@ -335,6 +341,8 @@ class BackupService:
 
         try:
             if db_type == 'mysql':
+                if not is_command_available('mysql'):
+                    return {'success': False, 'error': 'mysql client not installed'}
                 cmd = ['mysql']
                 if user:
                     cmd.extend(['-u', user])
@@ -348,6 +356,9 @@ class BackupService:
                     result = subprocess.run(cmd, stdin=f, capture_output=True, text=True)
 
             elif db_type == 'postgresql':
+                if not is_command_available('psql'):
+                    return {'success': False, 'error': 'psql client not installed'}
+
                 env = os.environ.copy()
                 if password:
                     env['PGPASSWORD'] = password

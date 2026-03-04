@@ -9,6 +9,7 @@ Supports:
 - Diff generation between deployments
 """
 
+import logging
 import os
 import subprocess
 import json
@@ -24,6 +25,9 @@ from app.services.build_service import BuildService
 from app.services.docker_service import DockerService
 from app.services.git_service import GitService
 from app import paths
+
+
+logger = logging.getLogger(__name__)
 
 
 class DeploymentService:
@@ -543,8 +547,8 @@ class DeploymentService:
             db.session.add(diff)
             db.session.commit()
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning('Failed to generate deployment diff: %s', e)
 
     @classmethod
     def get_deployments(cls, app_id: int, limit: int = 20, offset: int = 0) -> List[Dict]:
